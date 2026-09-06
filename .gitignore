@@ -1,0 +1,8 @@
+.env
+data/*.db
+data/dados.db
+data/backup_*.db
+api_logs.txt
+.user_uploaded/
+.DS_Store
+*.log

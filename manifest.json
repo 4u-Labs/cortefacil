@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json.schemastore.org/web-manifest-combined.json",
+  "name": "Corte Fácil Pro Edition",
+  "short_name": "Corte Fácil",
+  "description": "Otimize seus planos de corte 2D para MDF, compensado e outros materiais. Economize material, tempo e aumente sua produtividade.",
+  "lang": "pt-BR",
+  
+  "start_url": "./index.php",
+  "scope": "./",
+  "id": "./",
+
+  "display": "standalone",
+  "background_color": "#0a0a14",
+  "theme_color": "#50fa7b",
+  "orientation": "any",
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
+
+  "icons": [
+    {
+      "src": "./images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable" 
+    },
+    {
+      "src": "./images/icon-512.png", 
+      "sizes": "512x512",
+      "type": "image/png", 
+      "purpose": "any maskable" 
+    }
+  ],
+
+  "screenshots": [
+    {
+      "src": "./images/icon-512.png", 
+      "type": "image/png", 
+      "form_factor": "narrow",
+      "label": "Visualização do Otimizador no Celular"
+    }
+  ],
+
+  "shortcuts": [
+    {
+      "name": "Novo Plano de Corte",
+      "short_name": "Novo",
+      "description": "Inicia um novo plano de corte vazio",
+      "url": "./index.php?action=novo",
+      "icons": [
+        {
+          "src": "./images/icon-192.png", 
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+
+  "file_handlers": [
+    {
+      "action": "./index.php",
+      "accept": {
+        "application/json": [ ".json" ],
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [ ".xlsx" ],
+        "application/vnd.ms-excel": [ ".xls" ],
+        "text/csv": [ ".csv" ]
+      }
+    }
+  ],
+  "share_target": {
+    "action": "/app/cortefacil/index.php?share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "name",
+      "text": "description",
+      "files": [
+        {
+          "name": "imported_files",
+          "accept": [
+            "application/json",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel",
+            "text/csv"
+          ]
+        }
+      ]
+    }
+  }
+}
+

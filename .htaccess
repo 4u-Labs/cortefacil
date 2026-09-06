@@ -1,0 +1,11 @@
+# Configuração PWA
+AddType application/manifest+json .json
+
+# Blindagem de Arquivos Sensíveis
+<FilesMatch "^\.env|api_logs\.txt|dados\.db$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Bloquear listagem de diretórios
+Options -Indexes
