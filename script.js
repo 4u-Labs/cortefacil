@@ -149,11 +149,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const emailSpan = document.getElementById('keepaiUserEmail');
                 
                 if (res.mode === 'keepai' && res.data.email) {
-                    if (loginForm) loginForm.style.display = 'none';
+                    if (loginForm) {
+                        loginForm.style.display = 'none';
+                        const passInp = document.getElementById('keepaiPassword');
+                        const emailInp = document.getElementById('keepaiEmail');
+                        if (passInp) passInp.disabled = true;
+                        if (emailInp) emailInp.disabled = true;
+                    }
                     if (loggedBox) loggedBox.style.display = 'flex';
                     if (emailSpan) emailSpan.innerText = res.data.email;
                 } else {
-                    if (loginForm) loginForm.style.display = 'flex';
+                    if (loginForm) {
+                        loginForm.style.display = 'flex';
+                        const passInp = document.getElementById('keepaiPassword');
+                        const emailInp = document.getElementById('keepaiEmail');
+                        if (passInp) passInp.disabled = false;
+                        if (emailInp) emailInp.disabled = false;
+                    }
                     if (loggedBox) loggedBox.style.display = 'none';
                 }
 

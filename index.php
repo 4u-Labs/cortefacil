@@ -16,12 +16,12 @@ include 'ui_header.php';
             <h2><i class="fa-solid fa-clipboard-list icon-purple"></i> Projeto & Material</h2>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="clientName">Nome do Cliente</label>
-                    <input id="clientName" placeholder="Ex: João Silva" type="text"/>
+                    <label for="clientName">Nome do Cliente / Marcenaria</label>
+                    <input id="clientName" placeholder="Ex: João Silva" type="text" autocomplete="off" data-form-type="other"/>
                 </div>
                 <div class="form-group">
-                    <label for="projectName">Nome do Projeto</label>
-                    <input id="projectName" placeholder="Ex: Armário Cozinha / Fachada" type="text"/>
+                    <label for="projectName">Nome do Projeto / Móvel</label>
+                    <input id="projectName" placeholder="Ex: Armário Cozinha / Fachada" type="text" autocomplete="off" data-form-type="other"/>
                 </div>
             </div>
             <div class="form-row" style="margin-top: 10px;">
@@ -104,19 +104,19 @@ include 'ui_header.php';
             <div class="form-row sheet-dims-row">
                 <div class="form-group">
                     <label for="sheetWidth">Largura (mm)</label>
-                    <input id="sheetWidth" min="1" type="number" value="2750"/>
+                    <input id="sheetWidth" min="1" type="number" value="2750" autocomplete="off" data-form-type="other"/>
                 </div>
                 <div class="form-group">
                     <label for="sheetHeight">Altura (mm)</label>
-                    <input id="sheetHeight" min="1" type="number" value="1830"/>
+                    <input id="sheetHeight" min="1" type="number" value="1830" autocomplete="off" data-form-type="other"/>
                 </div>
                 <div class="form-group">
                     <label for="kerf">Corte / Kerf (mm)</label>
-                    <input id="kerf" min="0" step="0.5" type="number" value="4"/>
+                    <input id="kerf" min="0" step="0.5" type="number" value="4" autocomplete="off" data-form-type="other"/>
                 </div>
                 <div class="form-group">
                     <label for="trimMargin">Refilo Borda (mm)</label>
-                    <input id="trimMargin" min="0" type="number" value="10" title="Margem de desbaste das bordas da chapa"/>
+                    <input id="trimMargin" min="0" type="number" value="10" autocomplete="off" data-form-type="other" title="Margem de desbaste das bordas da chapa"/>
                 </div>
             </div>
 
@@ -144,21 +144,21 @@ include 'ui_header.php';
             <div class="form-row">
                 <div class="form-group" style="flex: 2; width: 100%;">
                     <label for="newPieceLabel">Descrição / Nome da Peça</label>
-                    <input id="newPieceLabel" placeholder="Ex: Porta, Tampo, Vidro Fixo" type="text"/>
+                    <input id="newPieceLabel" placeholder="Ex: Porta, Tampo, Vidro Fixo" type="text" autocomplete="off" data-form-type="other"/>
                 </div>
             </div>
             <div class="form-row piece-inputs-row" style="margin-top: 5px;">
                 <div class="form-group">
                     <label for="newPieceWidth">Largura (mm)</label>
-                    <input id="newPieceWidth" placeholder="L (mm)" type="number" min="1"/>
+                    <input id="newPieceWidth" placeholder="L (mm)" type="number" min="1" autocomplete="off" data-form-type="other"/>
                 </div>
                 <div class="form-group">
                     <label for="newPieceHeight">Altura (mm)</label>
-                    <input id="newPieceHeight" placeholder="H (mm)" type="number" min="1"/>
+                    <input id="newPieceHeight" placeholder="H (mm)" type="number" min="1" autocomplete="off" data-form-type="other"/>
                 </div>
                 <div class="form-group">
                     <label for="newPieceQuantity">Qtd</label>
-                    <input id="newPieceQuantity" min="1" type="number" value="1"/>
+                    <input id="newPieceQuantity" min="1" type="number" value="1" autocomplete="off" data-form-type="other"/>
                 </div>
             </div>
 
@@ -225,11 +225,11 @@ include 'ui_header.php';
             <div class="form-row">
                 <div class="form-group">
                     <label for="sheetPrice">Preço por Chapa (R$)</label>
-                    <input id="sheetPrice" min="0" step="0.01" type="number" placeholder="Ex: 180.00" oninput="recalculateCosts()"/>
+                    <input id="sheetPrice" min="0" step="0.01" type="number" placeholder="Ex: 180.00" oninput="recalculateCosts()" autocomplete="off" data-form-type="other"/>
                 </div>
                 <div class="form-group" id="edgePriceGroup">
                     <label for="edgePrice">Fita de Borda (R$/metro)</label>
-                    <input id="edgePrice" min="0" step="0.01" type="number" placeholder="Ex: 1.50" oninput="recalculateCosts()"/>
+                    <input id="edgePrice" min="0" step="0.01" type="number" placeholder="Ex: 1.50" oninput="recalculateCosts()" autocomplete="off" data-form-type="other"/>
                 </div>
             </div>
         </div>
