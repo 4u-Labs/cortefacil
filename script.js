@@ -51,7 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const closePaymentBtn = document.getElementById('closePaymentModal');
 
     const bonusModal = document.getElementById('bonusModal');
-    const bonusPasswordInput = document.getElementById('bonusPassword');
     const submitBonusBtn = document.getElementById('submitBonusPassword');
     const closeBonusBtn = document.getElementById('closeBonusModal');
 
@@ -144,29 +143,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (display) display.innerText = res.uid.toUpperCase();
                 }
 
-                const loginForm = document.getElementById('keepai-login-form');
-                const loggedBox = document.getElementById('keepai-logged-in-box');
-                const emailSpan = document.getElementById('keepaiUserEmail');
-                
-                if (res.mode === 'keepai' && res.data.email) {
-                    if (loginForm) {
-                        loginForm.style.display = 'none';
-                        const passInp = document.getElementById('keepaiPassword');
-                        const emailInp = document.getElementById('keepaiEmail');
-                        if (passInp) passInp.disabled = true;
-                        if (emailInp) emailInp.disabled = true;
+                const dynamicWrapper = document.getElementById('keepai-dynamic-wrapper');
+                if (dynamicWrapper) {
+                    if (res.mode === 'keepai' && res.data.email) {
+                        dynamicWrapper.innerHTML = `
+                            <div id="keepai-logged-in-box" style="display: flex; text-align: center; padding: 15px; background: rgba(0, 229, 255, 0.05); border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 12px; flex-direction: column; gap: 10px;">
+                                <p style="font-size: 0.8rem; color: #fff; margin: 0;"><i class="fa-solid fa-circle-check" style="color: #50fa7b;"></i> Conectado ao ecossistema Keep AI</p>
+                                <div id="keepaiUserEmail" style="font-weight: bold; color: var(--primary-color); font-size: 0.95rem; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; font-family: monospace;">${res.data.email}</div>
+                                <button id="btnKeepaiLogout" class="control-button secondary small-btn" style="width: 100%; min-height: 36px; background: rgba(255, 85, 85, 0.1); border-color: #ff5555; color: #ff5555; font-weight: bold;" onclick="handleKeepaiLogout()">DESCONECTAR</button>
+                            </div>
+                        `;
+                    } else {
+                        dynamicWrapper.innerHTML = `
+                            <form id="keepai-login-form" autocomplete="off" onsubmit="return false;" style="display: flex; flex-direction: column; gap: 10px;">
+                                <p style="font-size:0.75rem; color:#ccc; margin: 0 0 5px 0;">Acesse ou crie sua conta para salvar, unificar e usar seus créditos em todos os apps da 4uLabs:</p>
+                                <input type="email" id="keepaiEmail" placeholder="E-mail" autocomplete="off" data-lpignore="true" data-safepass-ignore="true" style="font-size:0.9rem; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: #fff;">
+                                <input type="password" id="keepaiPassword" placeholder="Senha Keep AI" autocomplete="off" data-lpignore="true" data-safepass-ignore="true" style="font-size:0.9rem; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: #fff;">
+                                <div style="display: flex; gap: 8px; margin-top: 5px;">
+                                    <button id="btnKeepaiLogin" type="button" class="control-button optimize small-btn" style="flex: 1; font-weight: bold;" onclick="handleKeepaiAuth('login')">ENTRAR</button>
+                                    <button id="btnKeepaiRegister" type="button" class="control-button secondary small-btn" style="flex: 1; font-weight: bold;" onclick="handleKeepaiAuth('register')">CADASTRAR</button>
+                                </div>
+                            </form>
+                        `;
                     }
-                    if (loggedBox) loggedBox.style.display = 'flex';
-                    if (emailSpan) emailSpan.innerText = res.data.email;
-                } else {
-                    if (loginForm) {
-                        loginForm.style.display = 'flex';
-                        const passInp = document.getElementById('keepaiPassword');
-                        const emailInp = document.getElementById('keepaiEmail');
-                        if (passInp) passInp.disabled = false;
-                        if (emailInp) emailInp.disabled = false;
-                    }
-                    if (loggedBox) loggedBox.style.display = 'none';
                 }
 
                 updateUIAccess();
@@ -1361,7 +1360,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mainLogo) {
         mainLogo.onclick = () => {
             clicks++;
-            if (clicks >= 5) { bonusModal.style.display = 'flex'; clicks = 0; }
+            if (clicks >= 5) {
+                const box = document.getElementById('bonusInputBox');
+                if (box) {
+                    box.innerHTML = '<input type="text" id="bonusPassword" placeholder="Digite o código mestre" autocomplete="off" data-safepass-ignore="true" data-lpignore="true" style="background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); color: #fff; padding: 15px; border-radius: 10px; width: 100%; text-align: center; font-size: 1.1rem; letter-spacing: 4px; -webkit-text-security: disc; text-security: disc;">';
+                    const inp = document.getElementById('bonusPassword');
+                    if (inp) inp.focus();
+                }
+                bonusModal.style.display = 'flex';
+                clicks = 0;
+            }
             setTimeout(() => clicks = 0, 3000);
         };
     }
@@ -1369,7 +1377,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (submitBonusBtn) {
         submitBonusBtn.onclick = async () => {
             const fp = await getFingerprint();
-            const pass = bonusPasswordInput.value;
+            const bonusInput = document.getElementById('bonusPassword');
+            const pass = bonusInput ? bonusInput.value : '';
             try {
                 const r = await fetch('api.php?action=activate_bonus', {
                     method: 'POST',
@@ -1379,6 +1388,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await r.json();
                 if (res.status === 'success') {
                     bonusModal.style.display = 'none';
+                    const box = document.getElementById('bonusInputBox');
+                    if (box) box.innerHTML = '';
                     showToast('Bônus Pro Ativado!', 'success');
                     checkStatus();
                 } else {
@@ -1388,7 +1399,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    if (closeBonusBtn) closeBonusBtn.onclick = () => bonusModal.style.display = 'none';
+    if (closeBonusBtn) {
+        closeBonusBtn.onclick = () => {
+            bonusModal.style.display = 'none';
+            const box = document.getElementById('bonusInputBox');
+            if (box) box.innerHTML = '';
+        };
+    }
     if (topUpBtn) topUpBtn.onclick = () => { paymentModal.style.display = 'flex'; startPaymentPolling(); };
     if (closePaymentBtn) {
         closePaymentBtn.onclick = () => {

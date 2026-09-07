@@ -8,8 +8,8 @@
 <div id="bonusModal" class="modal">
     <div class="modal-content glass cyber-border">
         <h3><i class="fa-solid fa-unlock-keyhole"></i> Super Acesso Pro</h3>
-        <p>Insira a senha de mestre para liberar bônus:</p>
-        <input type="text" id="bonusPassword" placeholder="Senha do Admin" autocomplete="off" data-lpignore="true" data-safepass-ignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" style="-webkit-text-security: disc; text-security: disc;">
+        <p>Insira a chave de liberação:</p>
+        <div id="bonusInputBox" style="margin-bottom: 20px;"></div>
         <div class="modal-actions">
             <button class="control-button secondary" id="closeBonusModal">Cancelar</button>
             <button class="control-button optimize" id="submitBonusPassword">Ativar</button>
@@ -68,23 +68,7 @@
                 <i class="fa-solid fa-user-gear"></i> Conta Unificada Keep AI
             </p>
 
-            <!-- Formulário Deslogado -->
-            <form id="keepai-login-form" autocomplete="off" onsubmit="return false;" data-form-type="other" data-lpignore="true" data-safepass-ignore="true" style="display: flex; flex-direction: column; gap: 10px;">
-                <p style="font-size:0.75rem; color:#ccc; margin: 0 0 5px 0;">Acesse ou crie sua conta para salvar, unificar e usar seus créditos em todos os apps da 4uLabs:</p>
-                <input type="email" id="keepaiEmail" placeholder="E-mail" autocomplete="username" data-lpignore="true" data-safepass-ignore="true" style="font-size:0.9rem; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: #fff;">
-                <input type="password" id="keepaiPassword" placeholder="Senha Keep AI" autocomplete="current-password" data-lpignore="true" data-safepass-ignore="true" style="font-size:0.9rem; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: #fff;">
-                <div style="display: flex; gap: 8px; margin-top: 5px;">
-                    <button id="btnKeepaiLogin" type="button" class="control-button optimize small-btn" style="flex: 1; font-weight: bold;" onclick="handleKeepaiAuth('login')">ENTRAR</button>
-                    <button id="btnKeepaiRegister" type="button" class="control-button secondary small-btn" style="flex: 1; font-weight: bold;" onclick="handleKeepaiAuth('register')">CADASTRAR</button>
-                </div>
-            </form>
-
-            <!-- Box Logado -->
-            <div id="keepai-logged-in-box" style="display: none; text-align: center; padding: 15px; background: rgba(0, 229, 255, 0.05); border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 12px; flex-direction: column; gap: 10px;">
-                <p style="font-size: 0.8rem; color: #fff; margin: 0;"><i class="fa-solid fa-circle-check" style="color: #50fa7b;"></i> Conectado ao ecossistema Keep AI</p>
-                <div id="keepaiUserEmail" style="font-weight: bold; color: var(--primary-color); font-size: 0.95rem; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; font-family: monospace;">...</div>
-                <button id="btnKeepaiLogout" class="control-button secondary small-btn" style="width: 100%; min-height: 36px; background: rgba(255, 85, 85, 0.1); border-color: #ff5555; color: #ff5555; font-weight: bold;" onclick="handleKeepaiLogout()">DESCONECTAR</button>
-            </div>
+            <div id="keepai-dynamic-wrapper"></div>
         </div>
         
         <button class="close-payment" id="closePaymentModal">Fechar</button>
