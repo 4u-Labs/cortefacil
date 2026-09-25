@@ -14,7 +14,7 @@ Este documento define os padrões de excelência e o estado de conformidade do s
 
 ## 1. 🛡️ Segurança e Blindagem (Padrão IDΞI.ΛⱣⱣ)
 - [ ] **Arquivo `.env`**: Todas as chaves isoladas (MP Secret, Admin Pass, OpenAI).
-- [ ] **Backdoor Dev**: Acesso via 5 cliques no logo + senha `Fbr4g4@`.
+- [ ] **Backdoor Dev**: Acesso via 5 cliques no logo + senha configurada no `.env` (`ADMIN_PASS`).
 - [ ] **Senha SaaS**: Padrão `admin123` (Exibir dica enquanto padrão, ocultar após troca).
 - [ ] **Recovery Key**: Sistema de ID Único (Fingerprint) com Cópia e WhatsApp.
 - [ ] **Proteção de Dados**: `.htaccess` bloqueando `/data`, `.env` e `api_logs.txt`.

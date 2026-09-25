@@ -53,7 +53,7 @@ function get_env_var($key, $default = null) {
 
 function generate_super_hash($browser_fingerprint) {
     $ip = $_SERVER['REMOTE_ADDR'];
-    $salt = get_env_var('ADMIN_PASS', 'Fbr4g4@');
+    $salt = get_env_var('ADMIN_PASS', 'cortefacil_sec_salt_2026');
     return substr(hash('sha256', $ip . $browser_fingerprint . $salt), 0, 12);
 }
 

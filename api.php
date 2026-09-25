@@ -126,7 +126,8 @@ switch ($action) {
 
     case 'activate_bonus':
         $pass = $_POST['password'] ?? '';
-        if ($pass === get_env_var('ADMIN_PASS', 'Fbr4g4@')) {
+        $adminPass = get_env_var('ADMIN_PASS', '');
+        if (!empty($pass) && !empty($adminPass) && $pass === $adminPass) {
             if ($keepaiUser) {
                 $kpdo->prepare("UPDATE users SET credits = credits + 50, updated_at = datetime('now') WHERE id = ?")
                      ->execute([$keepaiUser['id']]);
