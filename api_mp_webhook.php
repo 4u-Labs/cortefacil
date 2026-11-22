@@ -1,4 +1,20 @@
 <?php
+
+// Optional Mercado Pago x-signature HMAC-SHA256 verification when MP_WEBHOOK_SECRET is set
+if (defined('MP_WEBHOOK_SECRET') && MP_WEBHOOK_SECRET !== '') {
+    $_rawBody = $rawBody ?? ($input ?? (file_get_contents('php://input') ?: ''));
+    $_b = json_decode((string) $_rawBody, true) ?? [];
+    $_mpPid = (string) ($_b['data']['id'] ?? ($_GET['data_id'] ?? ($_GET['id'] ?? '')));
+    $_xSig  = (string) ($_SERVER['HTTP_X_SIGNATURE'] ?? '');
+    $_xReq  = (string) ($_SERVER['HTTP_X_REQUEST_ID'] ?? '');
+    $_ts = ''; $_v1 = '';
+    foreach (explode(',', $_xSig) as $_part) {
+        $_kv = explode('=', trim($_part), 2);
+        if (count($_kv) === 2) { if ($_kv[0] === 'ts') $_ts = $_kv[1]; if ($_kv[0] === 'v1') $_v1 = $_kv[1]; }
+    }
+    $_exp = hash_hmac('sha256', "id:{$_mpPid};request-id:{$_xReq};ts:{$_ts};", MP_WEBHOOK_SECRET);
+    if ($_mpPid !== '' && ($_v1 === '' || !hash_equals($_exp, $_v1))) { http_response_code(401); exit('Invalid signature'); }
+}
 /**
  * API Webhook Mercado Pago - Corte Fácil Pro
  * Padrão 4U.IA.BR Premium — Modo Híbrido (Keep AI + Fingerprint)
