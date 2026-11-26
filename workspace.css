@@ -304,3 +304,5 @@
 .workspace-page #sketchDropZone :is(strong,p,span) { color:#e6f0e9 !important; }
 .workspace-page .canvas-sheet-title, .workspace-page .canvas-sheet-title span { color:var(--ws-text) !important; }
 .workspace-page .canvas-sheet-title { font-family:Roboto,system-ui,sans-serif; }
+.workspace-page .canvas-header-bar { background:var(--ws-bg) !important; color:var(--ws-text); padding:10px 0; border-bottom:1px solid var(--ws-line); }
+.workspace-page .canvas-pieces-count { background:var(--ws-soft); color:var(--ws-muted) !important; }
