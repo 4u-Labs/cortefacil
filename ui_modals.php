@@ -22,7 +22,7 @@
     <div class="modal-content glass cyber-border">
         <h3><i class="fa-solid fa-gem" style="color: #00e5ff;"></i> Recarregar Créditos</h3>
         <p><i class="fa-brands fa-pix" style="color:#32bcad"></i> Pagamento exclusivo via <b>PIX</b> (Liberação Imediata)</p>
-        
+
         <div class="pricing-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
             <div class="pricing-card glass" id="pkg-card-0" style="cursor: pointer; padding: 15px; text-align: center; border-radius: 12px; transition: all 0.3s; border: 1px solid var(--glass-border);" onclick="selectPackage(0)">
                 <h4 style="margin: 0 0 5px 0; font-size: 1rem; color: #fff;">Bronze</h4>
@@ -48,20 +48,20 @@
         <!-- Seção do PIX Direct com QR Code -->
         <div id="pix-section" style="display: none; margin-top: 15px; text-align: center; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(0, 229, 255, 0.2);">
             <h4 style="color: #32bcad; margin-top: 0; margin-bottom: 10px; font-size: 0.95rem;"><i class="fa-solid fa-spinner fa-spin"></i> Aguardando Pagamento PIX...</h4>
-            
+
             <div id="pix-qrcode-container" style="margin: 15px auto; width: 180px; height: 180px; background: white; padding: 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(0, 229, 255, 0.2);">
                 <img id="pix-qrcode" src="" alt="QR Code PIX" style="width: 100%; height: 100%; object-fit: contain;">
             </div>
-            
+
             <p style="font-size: 0.8rem; color: #ccc; margin-bottom: 8px;">Escaneie o QR Code ou copie a chave copia e cola abaixo:</p>
-            
+
             <textarea id="pix-copia-cola" readonly style="width: 100%; height: 50px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 5px; border-radius: 6px; font-family: monospace; font-size: 0.7rem; resize: none; text-align: center; margin-bottom: 10px;"></textarea>
-            
+
             <button id="btn-copy-pix" class="control-button secondary small-btn" style="width: 100%; font-size: 0.8rem;" onclick="copyPixCode()">
                 <i class="fa-regular fa-copy"></i> Copiar Código PIX
             </button>
         </div>
-        
+
         <!-- Conta Unificada Keep AI -->
         <div class="account-recovery glass" style="margin-top:20px; border-top:1px solid var(--glass-border); padding-top:20px;">
             <p style="font-size:0.8rem; color:var(--primary-color); font-weight:bold; margin-bottom:12px; text-transform: uppercase; letter-spacing: 1px;">
@@ -70,7 +70,7 @@
 
             <div id="keepai-dynamic-wrapper"></div>
         </div>
-        
+
         <button class="close-payment" id="closePaymentModal">Fechar</button>
     </div>
 </div>
@@ -80,9 +80,9 @@
     <div class="modal-content glass cyber-border legal-modal">
         <h3><i class="fa-solid fa-shield-halved icon-cyan"></i> Privacidade</h3>
         <div class="legal-text">
-            <p>Seus dados de projeto são armazenados localmente e sincronizados de forma segura via ID de Acesso.</p>
+            <p>O projeto permanece nesta aba. Exporte o arquivo JSON para guardar uma cópia e reabri-la depois.</p>
             <h4>Conformidade</h4>
-            <p>Não compartilhamos informações com terceiros. Os pagamentos são processados 100% pelo Mercado Pago.</p>
+            <p>Ao usar o leitor de rascunhos, a imagem é enviada ao serviço de IA para extração das medidas. Os pagamentos são processados pelo Mercado Pago.</p>
         </div>
         <button class="control-button secondary close-legal" data-modal="privacyModal">Entendido</button>
     </div>
@@ -177,7 +177,7 @@
                     <img id="sketchPreviewImg" src="" alt="Prévia do Rascunho">
                     <div id="sketchScanLine" class="sketch-scan-line"></div>
                 </div>
-                
+
                 <div class="sketch-options-grid">
                     <div class="input-group">
                         <label for="sketchUnitSelect"><i class="fa-solid fa-ruler"></i> Unidade do Rascunho:</label>

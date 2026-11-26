@@ -1,0 +1,9 @@
+{
+  "name": "cortefacil",
+  "private": true,
+  "version": "3.0.0",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "check": "node --check script.js && node --check optimizer.js && node --check workspace-core.js && node --check i18n.js && node --check sw.js && php -l index.php && php -l ui_header.php && php -l ui_footer.php && php -l ui_modals.php"
+  }
+}

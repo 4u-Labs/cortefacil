@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const clientNameInput = document.getElementById('clientName');
     const projectNameInput = document.getElementById('projectName');
     const materialTypeSelect = document.getElementById('materialType');
-    
+
     const sheetWidthInput = document.getElementById('sheetWidth');
     const sheetHeightInput = document.getElementById('sheetHeight');
     const kerfInput = document.getElementById('kerf');
@@ -56,9 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Paleta de Cores Elegante para Peças ---
     const PIECE_COLORS = [
-        '#50fa7b', '#8be9fd', '#ff79c6', '#bd93f9', '#f1fa8c', 
-        '#ffb86c', '#00e5ff', '#a855f7', '#ec4899', '#3b82f6',
-        '#10b981', '#f59e0b', '#06b6d4', '#6366f1', '#14b8a6'
+        '#52b788', '#74b9b0', '#b8a6cf', '#cfb58c', '#7dace0', '#d89aa5'
     ];
 
     // --- Estado da Aplicação ---
@@ -70,9 +68,186 @@ document.addEventListener('DOMContentLoaded', () => {
         bonusActive: false,
         isSaved: true,
         canvasZoom: 1.0,
-        showLabels: true,
+        showLabels: false,
+        selectedPieceId: null,
+        activeSheetIndex: 0,
         material: 'wood'
     };
+
+    const Core = window.CorteWorkspace;
+    const t = (pt, en) => window.CorteI18n ? window.CorteI18n.t(pt, en) : pt;
+    const escapeHtml = Core.escapeHtml;
+    let editingPieceId = null;
+    let workspaceTab = 'sheet';
+    let inputTab = 'sheet';
+    let workspaceReady = false;
+    function sheetSettings() {
+        return {width:Number(sheetWidthInput.value),height:Number(sheetHeightInput.value),kerf:Number(kerfInput.value),trim:Number(trimMarginInput.value),allowRotation:allowRotationCheckbox.checked};
+    }
+    function updateWorkspaceSummary() {
+        const {types,units} = Core.pieceSummary(appState.pieces);
+        const summary = document.getElementById('workspaceSummary');
+        if (summary) summary.textContent = `${types} ${t('tipos','types')} · ${units} ${t('unidades','units')}`;
+        const unitCount = document.getElementById('workspacePieceCount');
+        if (unitCount) unitCount.textContent = units;
+        const status = document.getElementById('workspaceStatus');
+        if (status) status.textContent = appState.results ? t('Plano atualizado','Plan up to date') : (units ? t('Gere o plano após conferir as peças','Review the pieces, then generate the plan') : t('Comece pela chapa ou experimente um exemplo','Choose a sheet or try an example'));
+        if (optimizeBtn) optimizeBtn.disabled = units === 0;
+    }
+    function selectWorkspaceTab(name, focus = false) {
+        if (!['sheet','pieces','plan'].includes(name)) return;
+        workspaceTab = name;
+        if (name !== 'plan') inputTab = name;
+        const mobile = window.matchMedia('(max-width: 900px)').matches;
+        document.body.dataset.workspaceTab = name;
+        document.querySelectorAll('[data-workspace-panel]').forEach(panel => {
+            const key = panel.dataset.workspacePanel;
+            panel.hidden = mobile ? key !== name : (key === 'plan' ? false : key !== inputTab);
+        });
+        document.querySelectorAll('[data-workspace-tab]').forEach(tab => {
+            const selected = tab.dataset.workspaceTab === (mobile ? name : inputTab);
+            tab.setAttribute('aria-selected', String(selected));
+            tab.tabIndex = selected ? 0 : -1;
+            if (selected && focus) tab.focus();
+        });
+        if (appState.results) requestAnimationFrame(() => renderResults());
+    }
+    function updatePresetVisibility() {
+        document.querySelectorAll('#presetsGrid .preset-btn').forEach(button => {
+            const material = button.dataset.presetMaterial || button.dataset.material || button.getAttribute('onclick')?.match(/'(wood|glass|metal|acrylic|custom)'/)?.[1];
+            button.hidden = Boolean(material && material !== materialTypeSelect.value && !['acrylic','custom'].includes(materialTypeSelect.value));
+        });
+    }
+    function selectPiece(id, options = {}) {
+        const piece = appState.pieces.find(p => p.id === Number(id));
+        if (!piece) return;
+        appState.selectedPieceId = piece.id;
+        if (appState.results && !appState.results[appState.activeSheetIndex]?.rects.some(r=>r.piece.id===piece.id)) {
+            const index=appState.results.findIndex(s=>s.rects.some(r=>r.piece.id===piece.id));
+            if(index>=0) appState.activeSheetIndex=index;
+        }
+        pieceTableBody?.querySelectorAll('tr[data-piece-id]').forEach(row => {
+            const selected=Number(row.dataset.pieceId)===piece.id;
+            row.classList.toggle('selected',selected);
+            row.querySelector('.piece-select-btn')?.setAttribute('aria-pressed',String(selected));
+        });
+        if (appState.results) renderResults();
+        if (options.showList) {
+            selectWorkspaceTab('pieces');
+            requestAnimationFrame(()=>document.querySelector(`tr[data-piece-id="${piece.id}"] .piece-select-btn`)?.focus({preventScroll:false}));
+        }
+    }
+    function renderSelectedPieceDetails() {
+        const target=document.getElementById('selectedPieceDetails');
+        if(!target || !appState.results) return;
+        const selected=appState.pieces.find(p=>p.id===appState.selectedPieceId);
+        target.hidden=!selected;
+        if(!selected) return;
+        const edges=selected.edgeBanding||{};
+        const sides=[edges.top?t('superior','top'):null,edges.bottom?t('inferior','bottom'):null,edges.left?t('esquerda','left'):null,edges.right?t('direita','right'):null].filter(Boolean).join(', ')||t('nenhuma','none');
+        target.innerHTML=`<label for="selectedPieceSelect">${t('Peça selecionada','Selected piece')}</label><select id="selectedPieceSelect">${appState.pieces.map(p=>`<option value="${p.id}" ${p.id===selected.id?'selected':''}>#${p.id} · ${escapeHtml(p.label)}</option>`).join('')}</select><div class="selected-piece-heading" data-user-content><strong>#${selected.id} · ${escapeHtml(selected.label)}</strong></div><div class="selected-piece-specs">${selected.width} × ${selected.height} mm · ${selected.quantity} ${t('unidades','units')}</div>${appState.material==='wood'?`<div>${t('Fita de borda','Edge banding')}: ${sides}</div>`:''}<div class="selected-piece-actions"><button type="button" id="viewSelectedInList" class="control-button secondary small-btn">${t('Ver na lista','View in list')}</button><button type="button" id="editSelectedPiece" class="control-button secondary small-btn">${t('Editar peça','Edit piece')}</button></div>`;
+        target.querySelector('select').setAttribute('data-user-content','');
+        target.querySelector('select').addEventListener('change',e=>selectPiece(Number(e.target.value)));
+        target.querySelector('#viewSelectedInList').addEventListener('click',()=>selectPiece(selected.id,{showList:true}));
+        target.querySelector('#editSelectedPiece').addEventListener('click',()=>editPiece(selected.id));
+    }
+    function cancelPieceEdit() {
+        editingPieceId=null;
+        const cancel=document.getElementById('cancelEditPieceBtn');
+        if(cancel) cancel.hidden=true;
+        if(confirmAddPieceBtn) confirmAddPieceBtn.textContent=t('Inserir peça na lista','Add piece to list');
+    }
+    function editPiece(id) {
+        const piece=appState.pieces.find(p=>p.id===Number(id));
+        if(!piece) return;
+        editingPieceId=piece.id;
+        newPieceLabelInput.value=piece.label;
+        newPieceWidthInput.value=piece.width;
+        newPieceHeightInput.value=piece.height;
+        newPieceQuantityInput.value=piece.quantity;
+        const edges=piece.edgeBanding||{};
+        [[edgeTop,'top'],[edgeBottom,'bottom'],[edgeLeft,'left'],[edgeRight,'right']].forEach(([el,key])=>{if(el)el.checked=Boolean(edges[key]);});
+        if(confirmAddPieceBtn) confirmAddPieceBtn.textContent=t('Salvar alterações','Save changes');
+        const cancel=document.getElementById('cancelEditPieceBtn');
+        if(cancel) cancel.hidden=false;
+        selectWorkspaceTab('pieces');
+        newPieceLabelInput.focus();
+    }
+    function duplicatePiece(id) {
+        const original=appState.pieces.find(p=>p.id===Number(id));
+        if(!original) return;
+        if(appState.pieces.length>=Core.MAX_TYPES || Core.pieceSummary(appState.pieces).units+original.quantity>Core.MAX_UNITS) return showToast(t('Limite de peças atingido. Divida o projeto.','Piece limit reached. Split the project.'),'error');
+        const copy={...original,id:Core.nextPieceId(appState.pieces),edgeBanding:{...original.edgeBanding}};
+        appState.pieces.push(copy);
+        appState.selectedPieceId=copy.id;
+        clearResults();renderPieceList();updateSaveStatus(false);
+    }
+    function setupWorkspace() {
+        // A filtered/transformed shell creates a containing block for fixed elements.
+        // Keep every dialog directly under body so it opens in the visible viewport.
+        const dialogs=Core.mountDialogs(document);
+        const printReport=document.getElementById('printReportContainer');if(printReport)document.body.appendChild(printReport);
+        let lastFocus=null,activeDialog=null;
+        function syncDialogs() {
+            const open=dialogs.find(m=>m.style.display && m.style.display!=='none');
+            document.body.classList.toggle('has-open-modal',Boolean(open));
+            dialogs.forEach(m=>m.setAttribute('aria-hidden',String(m!==open)));
+            if(open && open!==activeDialog){lastFocus=document.activeElement;activeDialog=open;(open.querySelector('button:not([disabled]),input:not([type="hidden"]),select,textarea')||open).focus({preventScroll:true});}
+            else if(!open && activeDialog){activeDialog=null;lastFocus?.focus?.({preventScroll:true});if(typeof stopLiveCamera==='function') stopLiveCamera();if(paymentPollInterval)clearInterval(paymentPollInterval);}
+        }
+        dialogs.forEach((dialog,index)=>{
+            document.body.appendChild(dialog);
+            dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-hidden','true');dialog.tabIndex=-1;
+            const title=dialog.querySelector('h2,h3');if(title){if(!title.id)title.id='corte-dialog-title-'+index;dialog.setAttribute('aria-labelledby',title.id);}
+            new MutationObserver(syncDialogs).observe(dialog,{attributes:true,attributeFilter:['style']});
+        });
+        document.addEventListener('keydown',e=>{
+            if(!activeDialog) return;
+            if(e.key==='Escape'){activeDialog.style.display='none';e.preventDefault();}
+            if(e.key==='Tab'){
+                const items=[...activeDialog.querySelectorAll('button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),a[href]')].filter(el=>el.getClientRects().length);
+                if(!items.length){e.preventDefault();return;}
+                const first=items[0],last=items[items.length-1];
+                if(e.shiftKey && document.activeElement===first){last.focus();e.preventDefault();}
+                else if(!e.shiftKey && document.activeElement===last){first.focus();e.preventDefault();}
+            }
+        });
+        document.querySelectorAll('[data-workspace-tab]').forEach(tab=>{
+            tab.addEventListener('click',()=>selectWorkspaceTab(tab.dataset.workspaceTab));
+            tab.addEventListener('keydown',e=>{
+                if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+                const tabs=[...document.querySelectorAll('[data-workspace-tab]')].filter(el=>el.getClientRects().length);
+                const idx=tabs.indexOf(tab);const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(idx+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+                e.preventDefault();selectWorkspaceTab(tabs[next].dataset.workspaceTab,true);
+            });
+        });
+        document.getElementById('cancelEditPieceBtn')?.addEventListener('click',()=>{cancelPieceEdit();newPieceLabelInput.value='';newPieceWidthInput.value='';newPieceHeightInput.value='';newPieceQuantityInput.value='1';});
+        document.getElementById('activeSheetSelect')?.addEventListener('change',e=>{appState.activeSheetIndex=Number(e.target.value);appState.selectedPieceId=appState.results?.[appState.activeSheetIndex]?.rects[0]?.piece.id||null;renderResults();});
+        const fullscreenBtn=document.getElementById('fullscreenPlanBtn');
+        fullscreenBtn?.addEventListener('click',async()=>{
+            const area=document.getElementById('resultsSection');
+            try{if(document.fullscreenElement)await document.exitFullscreen();else if(area?.requestFullscreen)await area.requestFullscreen();else{area?.classList.toggle('expanded-plan');renderResults();}}catch{area?.classList.toggle('expanded-plan');renderResults();}
+        });
+        document.addEventListener('fullscreenchange',()=>{requestAnimationFrame(()=>renderResults());});
+        [sheetWidthInput,sheetHeightInput,kerfInput,trimMarginInput,allowRotationCheckbox,cutAlgorithmSelect].forEach(el=>el?.addEventListener('change',()=>{clearResults();updateSaveStatus(false);}));
+        [clientNameInput,projectNameInput].forEach(el=>el?.addEventListener('input',()=>updateSaveStatus(false)));
+        materialTypeSelect?.addEventListener('change',()=>{updatePresetVisibility();clearResults();updateSaveStatus(false);});
+        let resizeTimer;
+        window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>selectWorkspaceTab(workspaceTab),100);});
+        let lastResultWidth=0;
+        if(window.ResizeObserver && cutPlanOutput){new ResizeObserver(entries=>{const width=Math.round(entries[0].contentRect.width);if(width>0 && width!==lastResultWidth){lastResultWidth=width;if(appState.results)requestAnimationFrame(()=>renderResults());}}).observe(cutPlanOutput);}
+        window.addEventListener('cortefacil:languagechange',()=>{renderPieceList();if(appState.results)renderResults();updateWorkspaceSummary();if(editingPieceId)confirmAddPieceBtn.textContent=t('Salvar alterações','Save changes');});
+        let installPrompt=null;
+        const install=document.getElementById('installAppButton');
+        const standalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+        if(install)install.hidden=Boolean(standalone);
+        window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;});
+        window.addEventListener('appinstalled',()=>{installPrompt=null;if(install)install.hidden=true;});
+        install?.addEventListener('click',async()=>{if(installPrompt){await installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;}else{customConfirm(t('Para instalar: no Android ou computador, abra o menu do navegador e escolha Instalar app. No iPhone/iPad, use Compartilhar → Adicionar à Tela de Início.','To install: on Android or desktop, open the browser menu and choose Install app. On iPhone/iPad, use Share → Add to Home Screen.'),()=>{});}});
+        updatePresetVisibility();selectWorkspaceTab('sheet');updateWorkspaceSummary();
+        const status=document.getElementById('saveStatus');if(status)status.textContent=t('Projeto nesta aba','Project in this tab');
+        workspaceReady=true;
+    }
 
     // --- Utilitários ---
     function showToast(msg, type = 'info') {
@@ -129,9 +304,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const token = localStorage.getItem('keepai_token');
         const headers = {};
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        
+
         try {
-            const r = await fetch(`api.php?action=check_status&fingerprint=${fp}&keepai_token=${encodeURIComponent(token || '')}`, { headers });
+            const r = await fetch(`api.php?action=check_status&fingerprint=${fp}`, { headers });
             const res = await r.json();
             if (res.status === 'success') {
                 appState.credits = parseInt(res.data.credits);
@@ -224,7 +399,8 @@ document.addEventListener('DOMContentLoaded', () => {
             window.event.currentTarget.classList.add('active');
         }
 
-        showToast(`Preset <b>${label}</b> aplicado!`, 'info');
+        updatePresetVisibility();clearResults();updateSaveStatus(false);
+        showToast(t('Tamanho de chapa aplicado.','Sheet preset applied.'), 'info');
     };
 
     // --- Carregador de Projeto Completo de Exemplo (Demonstração com 1-Clique) ---
@@ -291,17 +467,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 2. Preenche array de peças completo
+        cancelPieceEdit();
+        appState.activeSheetIndex = 0;
+        appState.selectedPieceId = 1;
         appState.pieces = demoPieces.map((p, idx) => ({
             id: idx + 1,
             label: p.label,
-            width: Math.max(p.width, p.height),
-            height: Math.min(p.width, p.height),
+            width: p.width,
+            height: p.height,
             quantity: p.quantity,
             edgeBanding: p.edgeBanding,
             color: PIECE_COLORS[idx % PIECE_COLORS.length]
         }));
 
         renderPieceList();
+        updatePresetVisibility();
         updateSaveStatus(false);
 
         // 3. Executa a otimização diretamente (Demonstração completa em tempo real)
@@ -326,10 +506,11 @@ document.addEventListener('DOMContentLoaded', () => {
         renderResults();
 
         // 4. Feedback e Scroll suave para os resultados
-        showToast(`✨ <b>${demoSheet.title}</b> carregado e otimizado com sucesso!`, 'success');
-        
+        showToast(t('Projeto de exemplo carregado e otimizado.','Sample project loaded and optimized.'), 'success');
+
+        selectWorkspaceTab('plan');
         const resultsEl = document.getElementById('resultsSection');
-        if (resultsEl) {
+        if (resultsEl && window.matchMedia('(max-width: 900px)').matches) {
             resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     };
@@ -344,139 +525,69 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Gerenciamento de Peças ---
     function addPiece() {
-        const w = parseInt(newPieceWidthInput.value);
-        const h = parseInt(newPieceHeightInput.value);
-        const q = parseInt(newPieceQuantityInput.value);
-        const label = newPieceLabelInput.value.trim() || `Peça ${appState.pieces.length + 1}`;
-        const sW = parseInt(sheetWidthInput.value);
-        const sH = parseInt(sheetHeightInput.value);
-
-        if (isNaN(w) || isNaN(h) || isNaN(q) || w <= 0 || h <= 0 || q <= 0) {
-            showToast('Informe dimensões válidas (L e H > 0)!', 'error');
-            return;
+        const width=Number(newPieceWidthInput.value),height=Number(newPieceHeightInput.value),quantity=Number(newPieceQuantityInput.value);
+        const label=newPieceLabelInput.value.trim().slice(0,160)||t('Peça','Piece')+' '+Core.nextPieceId(appState.pieces);
+        const checked=Core.validatePiece({width,height,quantity},sheetSettings());
+        if(!checked.valid){
+            const message=checked.error==='fit'?t('A peça não cabe na área útil da chapa. Confira refilo e rotação.','The piece does not fit the usable sheet area. Check trim and rotation.'):t('Informe medidas positivas e uma quantidade inteira válida.','Enter positive dimensions and a valid whole quantity.');
+            showToast(message,'error');const error=document.getElementById('pieceInputError');if(error){error.hidden=false;error.style.display='block';error.textContent=message;error.setAttribute('role','alert');}return;
         }
-
-        if ((w > sW && w > sH) || (h > sW && h > sH)) {
-            showToast(`A peça (${w}×${h}mm) é maior que a chapa (${sW}×${sH}mm)!`, 'error');
-            return;
-        }
-
-        const color = PIECE_COLORS[appState.pieces.length % PIECE_COLORS.length];
-        const edgeBanding = {
-            top: edgeTop ? edgeTop.checked : false,
-            bottom: edgeBottom ? edgeBottom.checked : false,
-            left: edgeLeft ? edgeLeft.checked : false,
-            right: edgeRight ? edgeRight.checked : false
-        };
-
-        appState.pieces.push({
-            id: appState.pieces.length + 1,
-            label,
-            width: w,
-            height: h,
-            quantity: q,
-            edgeBanding,
-            color
-        });
-
-        // Limpa campos
-        newPieceWidthInput.value = '';
-        newPieceHeightInput.value = '';
-        newPieceQuantityInput.value = '1';
-        newPieceLabelInput.value = '';
-        if (edgeTop) edgeTop.checked = false;
-        if (edgeBottom) edgeBottom.checked = false;
-        if (edgeLeft) edgeLeft.checked = false;
-        if (edgeRight) edgeRight.checked = false;
+        const current=appState.pieces.find(p=>p.id===editingPieceId);
+        if((!current && appState.pieces.length>=Core.MAX_TYPES)||Core.pieceSummary(appState.pieces).units-(current?.quantity||0)+quantity>Core.MAX_UNITS)return showToast(t('Limite de peças atingido. Divida o projeto.','Piece limit reached. Split the project.'),'error');
+        const id=current?.id||Core.nextPieceId(appState.pieces);
+        const piece={id,label,width,height,quantity,color:current?.color||PIECE_COLORS[appState.pieces.length%PIECE_COLORS.length],edgeBanding:{top:Boolean(edgeTop?.checked),bottom:Boolean(edgeBottom?.checked),left:Boolean(edgeLeft?.checked),right:Boolean(edgeRight?.checked)}};
+        if(current)appState.pieces[appState.pieces.indexOf(current)]=piece;else appState.pieces.push(piece);
+        appState.selectedPieceId=id;
+        cancelPieceEdit();clearResults();renderPieceList();updateSaveStatus(false);
+        newPieceWidthInput.value='';newPieceHeightInput.value='';newPieceQuantityInput.value='1';newPieceLabelInput.value='';
+        [edgeTop,edgeBottom,edgeLeft,edgeRight].forEach(el=>{if(el)el.checked=false;});
+        const error=document.getElementById('pieceInputError');if(error)error.style.display='none';
         newPieceLabelInput.focus();
-
-        renderPieceList();
-        updateSaveStatus(false);
-        showToast(`Peça <b>${label}</b> adicionada!`, 'success');
+        showToast(current?t('Peça atualizada. Gere o plano novamente.','Piece updated. Generate the plan again.'):t('Peça adicionada à lista.','Piece added to the list.'),'success');
     }
-
     function removePiece(index) {
-        appState.pieces.splice(index, 1);
-        renderPieceList();
-        clearResults();
-        updateSaveStatus(false);
+        const removed=appState.pieces[index];if(!removed)return;
+        if(editingPieceId===removed.id)cancelPieceEdit();
+        appState.pieces.splice(index,1);
+        if(appState.selectedPieceId===removed.id)appState.selectedPieceId=appState.pieces[0]?.id||null;
+        clearResults();renderPieceList();updateSaveStatus(false);
     }
-
     function renderPieceList() {
-        if (!pieceTableBody) return;
-        pieceTableBody.innerHTML = '';
-
-        if (appState.pieces.length === 0) {
-            pieceTableBody.innerHTML = `
-                <tr>
-                    <td colspan="6" class="empty-pieces-text">Nenhuma peça adicionada ainda. Adicione acima ou importe uma planilha.</td>
-                </tr>
-            `;
-            if (pieceCountSpan) pieceCountSpan.innerText = '0';
-            if (clearAllPiecesBtn) clearAllPiecesBtn.disabled = true;
-            if (optimizeBtn) optimizeBtn.disabled = true;
-            return;
-        }
-
-        let totalItems = 0;
-        appState.pieces.forEach((p, index) => {
-            totalItems += p.quantity;
-            const tr = document.createElement('tr');
-            tr.id = `piece-row-${index}`;
-
-            let edgeHtml = '-';
-            if (appState.material === 'wood') {
-                const b = p.edgeBanding || {};
-                const topIcon = b.top ? '<span style="color:#f1fa8c" title="Borda Superior">⬆</span>' : '';
-                const botIcon = b.bottom ? '<span style="color:#f1fa8c" title="Borda Inferior">⬇</span>' : '';
-                const leftIcon = b.left ? '<span style="color:#f1fa8c" title="Borda Esquerda">⬅</span>' : '';
-                const rightIcon = b.right ? '<span style="color:#f1fa8c" title="Borda Direita">➡</span>' : '';
-                const count = (b.top?1:0) + (b.bottom?1:0) + (b.left?1:0) + (b.right?1:0);
-                edgeHtml = count > 0 ? `${count} lados (${topIcon}${botIcon}${leftIcon}${rightIcon})` : '<span style="color:#64748b">Nenhuma</span>';
-            }
-
-            tr.innerHTML = `
-                <td><span class="piece-tag" style="border-left: 3px solid ${p.color};">#${index + 1}</span></td>
-                <td><strong style="color:#fff;">${p.label}</strong></td>
-                <td>${p.width} × ${p.height} mm</td>
-                <td><span style="color:var(--primary-color); font-weight:bold;">${p.quantity}x</span></td>
-                <td>${edgeHtml}</td>
-                <td>
-                    <button class="btn-del-piece" onclick="window.deletePieceItem(${index})" title="Excluir Peça">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
-                </td>
-            `;
-            pieceTableBody.appendChild(tr);
-        });
-
-        if (pieceCountSpan) pieceCountSpan.innerText = totalItems;
-        if (clearAllPiecesBtn) clearAllPiecesBtn.disabled = false;
-        if (optimizeBtn) optimizeBtn.disabled = false;
+        if(!pieceTableBody)return;
+        const summary=Core.pieceSummary(appState.pieces);
+        if(pieceCountSpan)pieceCountSpan.textContent=summary.units;
+        const typeCount=document.getElementById('pieceTypeCount');if(typeCount)typeCount.textContent=summary.types;
+        if(clearAllPiecesBtn)clearAllPiecesBtn.disabled=!summary.types;
+        if(optimizeBtn)optimizeBtn.disabled=!summary.types;
+        if(!summary.types){pieceTableBody.innerHTML=`<tr><td colspan="6" class="empty-pieces-text">${t('Adicione uma peça ou importe uma lista para começar.','Add a piece or import a list to get started.')}</td></tr>`;updateWorkspaceSummary();return;}
+        pieceTableBody.innerHTML=appState.pieces.map(p=>{
+            const edges=p.edgeBanding||{};
+            const names=[edges.top?t('Superior','Top'):null,edges.bottom?t('Inferior','Bottom'):null,edges.left?t('Esquerda','Left'):null,edges.right?t('Direita','Right'):null].filter(Boolean);
+            const edgeHtml=appState.material==='wood'?(names.length?names.join(', '):t('Nenhuma','None')):'—';
+            const selected=p.id===appState.selectedPieceId;
+            return `<tr class="piece-row${selected?' selected':''}" id="piece-row-${p.id}" data-piece-id="${p.id}"><td data-label="#"><span class="piece-tag" style="border-left:3px solid ${p.color}">#${p.id}</span></td><td data-label="${t('Descrição','Description')}"><button type="button" class="piece-select-btn" data-action="select" data-id="${p.id}" aria-pressed="${selected}" data-user-content>${escapeHtml(p.label)}</button></td><td data-label="${t('Medidas','Dimensions')}">${p.width} × ${p.height} mm</td><td data-label="${t('Quantidade','Quantity')}">${p.quantity} ${t('un.','units')}</td><td data-label="${t('Bordas','Edges')}">${edgeHtml}</td><td data-label="${t('Ações','Actions')}"><div class="piece-row-actions"><button type="button" class="btn-edit-piece" data-action="edit" data-id="${p.id}" aria-label="${t('Editar peça','Edit piece')} #${p.id}">${t('Editar','Edit')}</button><button type="button" class="btn-duplicate-piece" data-action="duplicate" data-id="${p.id}" aria-label="${t('Duplicar peça','Duplicate piece')} #${p.id}">${t('Duplicar','Duplicate')}</button><button type="button" class="btn-del-piece" data-action="delete" data-id="${p.id}" aria-label="${t('Excluir peça','Delete piece')} #${p.id}"><i class="fa-solid fa-trash" aria-hidden="true"></i></button></div></td></tr>`;
+        }).join('');
+        updateWorkspaceSummary();
     }
-
-    window.deletePieceItem = function(index) {
-        removePiece(index);
-    };
-
-    if (clearAllPiecesBtn) {
-        clearAllPiecesBtn.onclick = () => {
-            customConfirm('Deseja realmente limpar todas as peças da lista?', () => {
-                appState.pieces = [];
-                renderPieceList();
-                clearResults();
-                showToast('Lista de peças limpa.', 'info');
-            });
-        };
-    }
+    pieceTableBody?.addEventListener('click',event=>{
+        const button=event.target.closest('button[data-action]');if(!button)return;
+        const id=Number(button.dataset.id);
+        if(button.dataset.action==='select')selectPiece(id);
+        if(button.dataset.action==='edit')editPiece(id);
+        if(button.dataset.action==='duplicate')duplicatePiece(id);
+        if(button.dataset.action==='delete')removePiece(appState.pieces.findIndex(p=>p.id===id));
+    });
+    window.deletePieceItem=index=>removePiece(index);
+    if(clearAllPiecesBtn)clearAllPiecesBtn.onclick=()=>customConfirm(t('Deseja realmente limpar todas as peças da lista?','Clear all pieces from the list?'),()=>{appState.pieces=[];appState.selectedPieceId=null;cancelPieceEdit();clearResults();renderPieceList();updateSaveStatus(false);});
 
     function updateSaveStatus(saved) {
         appState.isSaved = saved;
         const status = document.getElementById('saveStatus');
         if (status) {
-            status.innerHTML = saved ? '<i class="fa-solid fa-check"></i> Sincronizado' : '<i class="fa-regular fa-floppy-disk"></i> Pendente';
+            status.textContent = saved ? t('Projeto exportado', 'Project exported') : t('Alterações não exportadas', 'Unexported changes');
             status.className = saved ? 'save-status saved' : 'save-status unsaved';
         }
+        updateWorkspaceSummary();
     }
 
     // ================================================================
@@ -484,282 +595,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // ================================================================
 
     // 1. Pack com Guilhotina 2D (Linear de ponta a ponta - Ideal p/ Vidro e Serras)
-    function packGuillotine(flatPieces, sW, sH, kerf, trim, allowRotate, splitRule = 'SLAS') {
-        let usableW = sW - (trim * 2);
-        let usableH = sH - (trim * 2);
-        let sheets = [];
-
-        function createNewSheet() {
-            return {
-                freeRects: [{ x: trim, y: trim, w: usableW, h: usableH }],
-                rects: []
-            };
-        }
-
-        sheets.push(createNewSheet());
-
-        flatPieces.forEach(p => {
-            let bestSheetIdx = -1;
-            let bestRectIdx = -1;
-            let bestScore = Infinity;
-            let bestRotated = false;
-            let bestW = p.w;
-            let bestH = p.h;
-
-            for (let sIdx = 0; sIdx < sheets.length; sIdx++) {
-                let sheet = sheets[sIdx];
-                for (let rIdx = 0; rIdx < sheet.freeRects.length; rIdx++) {
-                    let free = sheet.freeRects[rIdx];
-
-                    // Tenta normal
-                    if (p.w <= free.w && p.h <= free.h) {
-                        let leftoverShort = Math.min(free.w - p.w, free.h - p.h);
-                        let score = leftoverShort;
-                        if (score < bestScore) {
-                            bestScore = score;
-                            bestSheetIdx = sIdx;
-                            bestRectIdx = rIdx;
-                            bestRotated = false;
-                            bestW = p.w;
-                            bestH = p.h;
-                        }
-                    }
-
-                    // Tenta rotacionado
-                    if (allowRotate && p.h <= free.w && p.w <= free.h) {
-                        let leftoverShort = Math.min(free.w - p.h, free.h - p.w);
-                        let score = leftoverShort;
-                        if (score < bestScore) {
-                            bestScore = score;
-                            bestSheetIdx = sIdx;
-                            bestRectIdx = rIdx;
-                            bestRotated = true;
-                            bestW = p.h;
-                            bestH = p.w;
-                        }
-                    }
-                }
-                if (bestSheetIdx !== -1) break;
-            }
-
-            if (bestSheetIdx === -1) {
-                sheets.push(createNewSheet());
-                bestSheetIdx = sheets.length - 1;
-                let sheet = sheets[bestSheetIdx];
-                let free = sheet.freeRects[0];
-                bestRectIdx = 0;
-                bestRotated = (allowRotate && p.h <= free.w && p.w <= free.h && p.w > free.w);
-                bestW = bestRotated ? p.h : p.w;
-                bestH = bestRotated ? p.w : p.h;
-            }
-
-            let sheet = sheets[bestSheetIdx];
-            let free = sheet.freeRects.splice(bestRectIdx, 1)[0];
-
-            sheet.rects.push({
-                x: free.x,
-                y: free.y,
-                w: bestW,
-                h: bestH,
-                rotated: bestRotated,
-                piece: p
-            });
-
-            // Guilhotina: Divide o retângulo livre remanescente
-            let wRemain = free.w - bestW - kerf;
-            let hRemain = free.h - bestH - kerf;
-
-            if (splitRule === 'SLAS' || splitRule === 'horizontal') {
-                if (wRemain > 0) sheet.freeRects.push({ x: free.x + bestW + kerf, y: free.y, w: wRemain, h: bestH });
-                if (hRemain > 0) sheet.freeRects.push({ x: free.x, y: free.y + bestH + kerf, w: free.w, h: hRemain });
-            } else {
-                if (hRemain > 0) sheet.freeRects.push({ x: free.x, y: free.y + bestH + kerf, w: bestW, h: hRemain });
-                if (wRemain > 0) sheet.freeRects.push({ x: free.x + bestW + kerf, y: free.y, w: wRemain, h: free.h });
-            }
-        });
-
-        return sheets;
-    }
-
-    // 2. Pack com Maximal Rectangles (Best Short Side Fit - Máximo aproveitamento CNC/Laser)
-    function packMaxRects(flatPieces, sW, sH, kerf, trim, allowRotate) {
-        let usableW = sW - (trim * 2);
-        let usableH = sH - (trim * 2);
-        let sheets = [];
-
-        function createNewSheet() {
-            return {
-                freeRects: [{ x: trim, y: trim, w: usableW, h: usableH }],
-                rects: []
-            };
-        }
-
-        sheets.push(createNewSheet());
-
-        flatPieces.forEach(p => {
-            let bestSheetIdx = -1;
-            let bestRectIdx = -1;
-            let bestScore1 = Infinity;
-            let bestScore2 = Infinity;
-            let bestRotated = false;
-            let bestW = p.w;
-            let bestH = p.h;
-
-            for (let sIdx = 0; sIdx < sheets.length; sIdx++) {
-                let sheet = sheets[sIdx];
-                for (let rIdx = 0; rIdx < sheet.freeRects.length; rIdx++) {
-                    let free = sheet.freeRects[rIdx];
-
-                    if (p.w <= free.w && p.h <= free.h) {
-                        let leftoverX = free.w - p.w;
-                        let leftoverY = free.h - p.h;
-                        let shortSide = Math.min(leftoverX, leftoverY);
-                        let longSide = Math.max(leftoverX, leftoverY);
-
-                        if (shortSide < bestScore1 || (shortSide === bestScore1 && longSide < bestScore2)) {
-                            bestScore1 = shortSide;
-                            bestScore2 = longSide;
-                            bestSheetIdx = sIdx;
-                            bestRectIdx = rIdx;
-                            bestRotated = false;
-                            bestW = p.w;
-                            bestH = p.h;
-                        }
-                    }
-
-                    if (allowRotate && p.h <= free.w && p.w <= free.h) {
-                        let leftoverX = free.w - p.h;
-                        let leftoverY = free.h - p.w;
-                        let shortSide = Math.min(leftoverX, leftoverY);
-                        let longSide = Math.max(leftoverX, leftoverY);
-
-                        if (shortSide < bestScore1 || (shortSide === bestScore1 && longSide < bestScore2)) {
-                            bestScore1 = shortSide;
-                            bestScore2 = longSide;
-                            bestSheetIdx = sIdx;
-                            bestRectIdx = rIdx;
-                            bestRotated = true;
-                            bestW = p.h;
-                            bestH = p.w;
-                        }
-                    }
-                }
-                if (bestSheetIdx !== -1) break;
-            }
-
-            if (bestSheetIdx === -1) {
-                sheets.push(createNewSheet());
-                bestSheetIdx = sheets.length - 1;
-                let sheet = sheets[bestSheetIdx];
-                let free = sheet.freeRects[0];
-                bestRectIdx = 0;
-                bestRotated = (allowRotate && p.h <= free.w && p.w <= free.h && p.w > free.w);
-                bestW = bestRotated ? p.h : p.w;
-                bestH = bestRotated ? p.w : p.h;
-            }
-
-            let sheet = sheets[bestSheetIdx];
-            let free = sheet.freeRects.splice(bestRectIdx, 1)[0];
-
-            sheet.rects.push({
-                x: free.x,
-                y: free.y,
-                w: bestW,
-                h: bestH,
-                rotated: bestRotated,
-                piece: p
-            });
-
-            // Split
-            let wRemain = free.w - bestW - kerf;
-            let hRemain = free.h - bestH - kerf;
-            if (wRemain > 0) sheet.freeRects.push({ x: free.x + bestW + kerf, y: free.y, w: wRemain, h: free.h });
-            if (hRemain > 0) sheet.freeRects.push({ x: free.x, y: free.y + bestH + kerf, w: free.w, h: hRemain });
-        });
-
-        return sheets;
-    }
-
-    // 3. Multi-Heuristic Auto Optimizer
-    function runMultiHeuristicOptimization(flatPieces, sW, sH, kerf, trim, allowRotate, forcedAlgo) {
-        if (forcedAlgo === 'guillotine') {
-            return packGuillotine(flatPieces, sW, sH, kerf, trim, allowRotate, 'SLAS');
-        }
-        if (forcedAlgo === 'maxrects') {
-            return packMaxRects(flatPieces, sW, sH, kerf, trim, allowRotate);
-        }
-
-        // AUTO: Testa 4 estratégias de ordenação e cortes
-        const strategies = [
-            { sort: (a,b) => (b.w * b.h) - (a.w * a.h), fn: p => packMaxRects(p, sW, sH, kerf, trim, allowRotate) },
-            { sort: (a,b) => Math.max(b.w, b.h) - Math.max(a.w, a.h), fn: p => packGuillotine(p, sW, sH, kerf, trim, allowRotate, 'horizontal') },
-            { sort: (a,b) => Math.max(b.w, b.h) - Math.max(a.w, a.h), fn: p => packGuillotine(p, sW, sH, kerf, trim, allowRotate, 'vertical') },
-            { sort: (a,b) => (b.w + b.h) - (a.w + a.h), fn: p => packMaxRects(p, sW, sH, kerf, trim, allowRotate) }
-        ];
-
-        let bestResult = null;
-        let bestSheetCount = Infinity;
-        let bestWaste = Infinity;
-
-        strategies.forEach(st => {
-            let sorted = [...flatPieces].sort(st.sort);
-            let res = st.fn(sorted);
-            let totalSheetArea = res.length * sW * sH;
-            let usedArea = res.reduce((sum, s) => sum + s.rects.reduce((rSum, r) => rSum + (r.w * r.h), 0), 0);
-            let waste = totalSheetArea - usedArea;
-
-            if (res.length < bestSheetCount || (res.length === bestSheetCount && waste < bestWaste)) {
-                bestSheetCount = res.length;
-                bestWaste = waste;
-                bestResult = res;
-            }
-        });
-
-        return bestResult;
+    function runMultiHeuristicOptimization(...args) {
+        return window.CorteOptimizer.runMultiHeuristicOptimization(...args);
     }
 
     // --- Execução da Otimização ---
     function optimize() {
-        if (appState.credits <= 0 && !appState.isPro && !appState.bonusActive) {
-            showToast('Créditos insuficientes! Recarregue para continuar.', 'error');
-            if (paymentModal) paymentModal.style.display = 'flex';
-            return;
-        }
-
-        const sW = parseInt(sheetWidthInput.value);
-        const sH = parseInt(sheetHeightInput.value);
-        const kerf = parseFloat(kerfInput.value) || 0;
-        const trim = parseInt(trimMarginInput.value) || 0;
-        const rotate = allowRotationCheckbox.checked;
-        const algo = cutAlgorithmSelect.value;
-
-        if (appState.pieces.length === 0) {
-            showToast('Adicione pelo menos uma peça antes de otimizar!', 'error');
-            return;
-        }
-
-        // Planificar peças
-        let flatPieces = [];
-        appState.pieces.forEach(p => {
-            for (let i = 0; i < p.quantity; i++) {
-                flatPieces.push({
-                    id: p.id,
-                    label: p.label,
-                    w: p.width,
-                    h: p.height,
-                    color: p.color,
-                    edgeBanding: p.edgeBanding
-                });
-            }
-        });
-
-        // Executar motor
-        appState.results = runMultiHeuristicOptimization(flatPieces, sW, sH, kerf, trim, rotate, algo);
-        renderResults();
-
-        if (!appState.isPro && !appState.bonusActive) {
-            deductCredit();
-        }
+        if(appState.credits<=0 && !appState.isPro && !appState.bonusActive){showToast(t('Créditos insuficientes. Recarregue para continuar.','Insufficient credits. Top up to continue.'),'error');if(paymentModal)paymentModal.style.display='flex';return;}
+        if(!appState.pieces.length)return;
+        const sheet=sheetSettings();
+        const invalid=appState.pieces.find(p=>!Core.validatePiece(p,sheet).valid);
+        if(invalid){showToast(t('Confira as medidas, refilo e rotação. A peça não cabe na área útil:','Check dimensions, trim and rotation. Piece does not fit:')+' #'+invalid.id,'error');return;}
+        try{
+            const flat=appState.pieces.flatMap(p=>Array.from({length:p.quantity},()=>({id:p.id,label:p.label,w:p.width,h:p.height,color:p.color,edgeBanding:p.edgeBanding})));
+            appState.results=runMultiHeuristicOptimization(flat,sheet.width,sheet.height,sheet.kerf,sheet.trim,sheet.allowRotation,cutAlgorithmSelect.value);
+            appState.activeSheetIndex=0;
+            appState.selectedPieceId=appState.results[0]?.rects[0]?.piece.id||null;
+            selectWorkspaceTab('plan');renderResults();
+            showToast(t('Plano de corte gerado.','Cutting plan generated.'),'success');
+            if(!appState.isPro && !appState.bonusActive)deductCredit();
+        }catch(error){clearResults();showToast(t('Não foi possível gerar o plano. Confira medidas e quantidade.','Could not generate the plan. Check dimensions and quantities.'),'error');}
     }
 
     async function deductCredit() {
@@ -768,149 +623,68 @@ document.addEventListener('DOMContentLoaded', () => {
         const headers = {};
         if (token) headers['Authorization'] = `Bearer ${token}`;
         try {
-            await fetch(`api.php?action=use_credit&fingerprint=${fp}&keepai_token=${encodeURIComponent(token || '')}`, { method: 'POST', headers });
+            await fetch(`api.php?action=use_credit&fingerprint=${fp}`, { method: 'POST', headers });
             checkStatus();
         } catch (e) { }
     }
 
     // --- Renderização Visual no Canvas ---
     function renderResults() {
-        if (!cutPlanOutput || !appState.results) return;
-        cutPlanOutput.innerHTML = '';
-
-        let sW = parseInt(sheetWidthInput.value);
-        let sH = parseInt(sheetHeightInput.value);
-        let totalSheetArea = sW * sH * appState.results.length;
-        let totalUsedArea = 0;
-        let totalEdgeMeters = 0;
-
-        appState.results.forEach((sheet, idx) => {
-            const canvasWrapper = document.createElement('div');
-            canvasWrapper.className = 'canvas-wrapper glass';
-            canvasWrapper.innerHTML = `
-                <div class="canvas-header-bar">
-                    <h3 class="canvas-sheet-title">
-                        <i class="fa-solid fa-layer-group"></i> Chapa ${idx + 1} de ${appState.results.length} 
-                        <span style="color:#e0e0ff; font-size:0.85em; font-weight:normal; opacity:0.85;">(${sW}×${sH}mm)</span>
-                    </h3>
-                    <span class="canvas-pieces-count">${sheet.rects.length} peças alocadas</span>
-                </div>
-            `;
-
-            const canvas = document.createElement('canvas');
-            canvas.className = 'sheet-cut-canvas';
-            const ctx = canvas.getContext('2d');
-
-            const containerW = cutPlanOutput.clientWidth || (window.innerWidth < 600 ? window.innerWidth - 32 : 800);
-            const renderW = Math.max(280, Math.min(containerW - 28, 900)) * appState.canvasZoom;
-            const scale = renderW / sW;
-            canvas.width = sW * scale;
-            canvas.height = sH * scale;
-
-            // Fundo da Chapa
-            ctx.fillStyle = '#121224';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(0, 0, canvas.width, canvas.height);
-
-            // Refilo (Margem de segurança)
-            const trim = parseInt(trimMarginInput.value) || 0;
-            if (trim > 0) {
-                ctx.strokeStyle = 'rgba(255, 85, 85, 0.3)';
-                ctx.setLineDash([4, 4]);
-                ctx.strokeRect(trim * scale, trim * scale, (sW - trim*2) * scale, (sH - trim*2) * scale);
-                ctx.setLineDash([]);
-            }
-
-            sheet.rects.forEach((r) => {
-                totalUsedArea += r.w * r.h;
-
-                const rx = r.x * scale;
-                const ry = r.y * scale;
-                const rw = r.w * scale;
-                const rh = r.h * scale;
-
-                // Preenchimento com cor suave da peça
-                ctx.fillStyle = r.piece.color + '44';
-                ctx.fillRect(rx, ry, rw, rh);
-
-                ctx.strokeStyle = r.piece.color;
-                ctx.lineWidth = 1.5;
-                ctx.strokeRect(rx, ry, rw, rh);
-
-                // Fita de Borda destacada nas laterais se houver
-                if (appState.material === 'wood' && r.piece.edgeBanding) {
-                    const eb = r.piece.edgeBanding;
-                    ctx.strokeStyle = '#f1fa8c';
-                    ctx.lineWidth = 3;
-
-                    // Topo
-                    if ((!r.rotated && eb.top) || (r.rotated && eb.left)) {
-                        ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx + rw, ry); ctx.stroke();
-                        totalEdgeMeters += r.w / 1000;
-                    }
-                    // Base
-                    if ((!r.rotated && eb.bottom) || (r.rotated && eb.right)) {
-                        ctx.beginPath(); ctx.moveTo(rx, ry + rh); ctx.lineTo(rx + rw, ry + rh); ctx.stroke();
-                        totalEdgeMeters += r.w / 1000;
-                    }
-                    // Esquerda
-                    if ((!r.rotated && eb.left) || (r.rotated && eb.bottom)) {
-                        ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx, ry + rh); ctx.stroke();
-                        totalEdgeMeters += r.h / 1000;
-                    }
-                    // Direita
-                    if ((!r.rotated && eb.right) || (r.rotated && eb.top)) {
-                        ctx.beginPath(); ctx.moveTo(rx + rw, ry); ctx.lineTo(rx + rw, ry + rh); ctx.stroke();
-                        totalEdgeMeters += r.h / 1000;
-                    }
+        if(!cutPlanOutput || !appState.results?.length)return;
+        cutPlanOutput.innerHTML='';
+        const sW=Number(sheetWidthInput.value),sH=Number(sheetHeightInput.value),trim=Number(trimMarginInput.value)||0;
+        appState.activeSheetIndex=Math.max(0,Math.min(appState.activeSheetIndex,appState.results.length-1));
+        let usedArea=0,edgeMeters=0;
+        const nav=document.getElementById('planSheetNavigation'),picker=document.getElementById('activeSheetSelect');
+        if(nav)nav.hidden=false;
+        if(picker)picker.innerHTML=appState.results.map((s,i)=>`<option value="${i}" ${i===appState.activeSheetIndex?'selected':''}>${t('Chapa','Sheet')} ${i+1} / ${appState.results.length} · ${s.rects.length} ${t('peças','pieces')}</option>`).join('');
+        appState.results.forEach((sheet,index)=>{
+            const wrapper=document.createElement('div');wrapper.className='canvas-wrapper';wrapper.hidden=index!==appState.activeSheetIndex;
+            wrapper.innerHTML=`<div class="canvas-header-bar"><h3 class="canvas-sheet-title">${t('Chapa','Sheet')} ${index+1} / ${appState.results.length} <span>${sW} × ${sH} mm</span></h3><span class="canvas-pieces-count">${sheet.rects.length} ${t('peças','pieces')}</span></div>`;
+            const scroll=document.createElement('div');scroll.className='canvas-scroll';
+            const stage=document.createElement('div');stage.className='canvas-stage';
+            const canvas=document.createElement('canvas');canvas.className='sheet-cut-canvas';
+            const available=cutPlanOutput.clientWidth||(window.innerWidth<600?window.innerWidth-64:700);
+            const width=Math.max(180,Math.min(available-32,1100))*appState.canvasZoom,height=width*sH/sW;
+            stage.style.position='relative';stage.style.width=width+'px';stage.style.maxWidth='none';
+            const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);canvas.style.width=width+'px';canvas.style.height=height+'px';
+            const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);const scale=width/sW;
+            ctx.fillStyle='#15231d';ctx.fillRect(0,0,width,height);
+            ctx.strokeStyle='#8c9e92';ctx.lineWidth=1;ctx.strokeRect(.5,.5,width-1,height-1);
+            if(trim>0){ctx.strokeStyle='#718879';ctx.setLineDash([4,4]);ctx.strokeRect(trim*scale,trim*scale,(sW-2*trim)*scale,(sH-2*trim)*scale);ctx.setLineDash([]);}
+            stage.appendChild(canvas);
+            sheet.rects.forEach(r=>{
+                usedArea+=r.w*r.h;
+                const x=r.x*scale,y=r.y*scale,w=r.w*scale,h=r.h*scale,selected=r.piece.id===appState.selectedPieceId;
+                const color=/^#[a-f\d]{6}$/i.test(r.piece.color)?r.piece.color:'#52b788';
+                ctx.fillStyle=selected?'#276b4c':color+'35';ctx.fillRect(x,y,w,h);ctx.strokeStyle=selected?'#a1f0bd':'#b0c4b7';ctx.lineWidth=selected?2.5:1;ctx.strokeRect(x,y,w,h);
+                const eb=r.piece.edgeBanding||{};
+                if(appState.material==='wood'){
+                    ctx.strokeStyle='#e4c789';ctx.lineWidth=2.5;
+                    const sides=[{has:(!r.rotated&&eb.top)||(r.rotated&&eb.left),a:[x,y],b:[x+w,y],length:r.w},{has:(!r.rotated&&eb.bottom)||(r.rotated&&eb.right),a:[x,y+h],b:[x+w,y+h],length:r.w},{has:(!r.rotated&&eb.left)||(r.rotated&&eb.bottom),a:[x,y],b:[x,y+h],length:r.h},{has:(!r.rotated&&eb.right)||(r.rotated&&eb.top),a:[x+w,y],b:[x+w,y+h],length:r.h}];
+                    sides.forEach(side=>{if(side.has){ctx.beginPath();ctx.moveTo(...side.a);ctx.lineTo(...side.b);ctx.stroke();edgeMeters+=side.length/1000;}});
                 }
-
-                // Texto e Identificação da Peça
-                if (rw > 35 && rh > 18 && appState.showLabels) {
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 11px Roboto, sans-serif';
-                    ctx.fillText(`#${r.piece.id} ${r.piece.label}`, rx + 5, ry + 14);
-
-                    ctx.fillStyle = '#94a3b8';
-                    ctx.font = '10px Roboto, sans-serif';
-                    ctx.fillText(`${r.w}×${r.h}mm`, rx + 5, ry + 27);
-
-                    if (r.rotated) {
-                        ctx.fillStyle = '#00e5ff';
-                        ctx.font = 'bold 10px Roboto, sans-serif';
-                        ctx.fillText('® Giro', rx + rw - 38, ry + 14);
-                    }
-                }
+                ctx.save();ctx.beginPath();ctx.rect(x+2,y+2,Math.max(0,w-4),Math.max(0,h-4));ctx.clip();ctx.fillStyle='#f0f7f2';ctx.font='600 12px system-ui, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+                if(w>18&&h>17){const label=Core.fitCanvasLabel('#'+r.piece.id,w-6,text=>ctx.measureText(text).width);ctx.fillText(label,x+w/2,y+h/2);}
+                if(appState.showLabels&&w>105&&h>60){ctx.textAlign='left';ctx.textBaseline='top';ctx.font='12px system-ui, sans-serif';ctx.fillText(Core.fitCanvasLabel(r.piece.label,w-12,text=>ctx.measureText(text).width),x+6,y+6);ctx.fillText(Core.fitCanvasLabel(`${r.w} × ${r.h} mm${r.rotated?' ↻':''}`,w-12,text=>ctx.measureText(text).width),x+6,y+h-19);}
+                ctx.restore();
+                const hit=document.createElement('button');hit.type='button';hit.className='canvas-hit-target';hit.dataset.pieceId=r.piece.id;hit.setAttribute('aria-label',`#${r.piece.id} ${r.piece.label}, ${r.w} × ${r.h} mm`);hit.setAttribute('aria-pressed',String(selected));hit.style.cssText=`position:absolute;left:${r.x/sW*100}%;top:${r.y/sH*100}%;width:${r.w/sW*100}%;height:${r.h/sH*100}%;`;
+                hit.addEventListener('click',()=>selectPiece(r.piece.id));stage.appendChild(hit);
             });
-
-            canvasWrapper.appendChild(canvas);
-            cutPlanOutput.appendChild(canvasWrapper);
+            scroll.appendChild(stage);wrapper.appendChild(scroll);cutPlanOutput.appendChild(wrapper);
         });
-
-        // Métricas e Resultados
-        const wastePercent = Math.max(0, ((1 - (totalUsedArea / totalSheetArea)) * 100)).toFixed(1);
-        const efficiencyPercent = (100 - parseFloat(wastePercent)).toFixed(1);
-
-        if (metricsGrid) metricsGrid.style.display = 'grid';
-        if (zoomToolbar) zoomToolbar.style.display = 'flex';
-
-        document.getElementById('metricSheetsCount').innerText = appState.results.length;
-        document.getElementById('metricEfficiency').innerText = efficiencyPercent + '%';
-        document.getElementById('metricWaste').innerText = wastePercent + '%';
-        document.getElementById('metricEdgeMeters').innerText = totalEdgeMeters.toFixed(1) + ' m';
-
-        const metricEdgeCard = document.getElementById('metricEdgeCard');
-        if (metricEdgeCard) {
-            metricEdgeCard.style.display = appState.material === 'wood' ? 'flex' : 'none';
-        }
-
+        const waste=Math.max(0,(1-usedArea/(sW*sH*appState.results.length))*100),efficiency=100-waste;
+        const locale=window.CorteI18n?.language==='en'?'en-US':'pt-BR';
+        if(metricsGrid)metricsGrid.style.display='grid';if(zoomToolbar)zoomToolbar.style.display='flex';
+        document.getElementById('metricSheetsCount').textContent=appState.results.length;
+        document.getElementById('metricEfficiency').textContent=efficiency.toLocaleString(locale,{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+        document.getElementById('metricWaste').textContent=waste.toLocaleString(locale,{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+        document.getElementById('metricEdgeMeters').textContent=edgeMeters.toFixed(1)+' m';
+        const edgeCard=document.getElementById('metricEdgeCard');if(edgeCard)edgeCard.style.display=appState.material==='wood'?'flex':'none';
         recalculateCosts();
-
-        wasteInfo.innerHTML = `Otimização concluída! <b>${appState.results.length} Chapas</b> | Aproveitamento: <b style="color:#50fa7b;">${efficiencyPercent}%</b> | Desperdício: <b style="color:#ff5555;">${wastePercent}%</b>`;
-        if (printPlanBtn) printPlanBtn.disabled = false;
-        showToast('Plano de corte otimizado com sucesso!', 'success');
+        if(wasteInfo)wasteInfo.textContent=t('Confira medidas, bordas e rotação antes de produzir.','Check dimensions, edge banding and rotation before production.');
+        if(printPlanBtn)printPlanBtn.disabled=false;
+        renderSelectedPieceDetails();updateWorkspaceSummary();
     }
 
     window.recalculateCosts = function() {
@@ -937,6 +711,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function clearResults() {
         appState.results = null;
+        appState.activeSheetIndex = 0;
+        const detail = document.getElementById('selectedPieceDetails');
+        if (detail) detail.hidden = true;
+        const nav = document.getElementById('planSheetNavigation');
+        if (nav) nav.hidden = true;
         if (printPlanBtn) printPlanBtn.disabled = true;
         if (metricsGrid) metricsGrid.style.display = 'none';
         if (zoomToolbar) zoomToolbar.style.display = 'none';
@@ -949,7 +728,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
         }
-        if (wasteInfo) wasteInfo.innerHTML = 'Aguardando inserção de peças e clique em <b>Gerar Plano de Corte</b>...';
+        if (wasteInfo) wasteInfo.textContent = t('Gere o plano para conferir a distribuição atual das peças.', 'Generate the plan to review the current piece layout.');
+        updateWorkspaceSummary();
     }
 
     // --- Zoom & Visualização ---
@@ -966,7 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.togglePieceLabels = function() {
         appState.showLabels = !appState.showLabels;
         const btn = document.getElementById('toggleLabelsBtn');
-        if (btn) btn.innerHTML = appState.showLabels ? '<i class="fa-solid fa-tag"></i> Detalhes' : '<i class="fa-regular fa-eye-slash"></i> Ocultos';
+        if (btn) {btn.textContent=t('Detalhes','Details');btn.setAttribute('aria-pressed',String(appState.showLabels));}
         renderResults();
     };
 
@@ -974,23 +754,23 @@ document.addEventListener('DOMContentLoaded', () => {
     window.printCutPlan = function() {
         if (!appState.results || appState.results.length === 0) return;
 
-        const client = clientNameInput.value.trim() || 'Não informado';
-        const project = projectNameInput.value.trim() || 'Plano de Corte';
-        const mat = materialTypeSelect.options[materialTypeSelect.selectedIndex].text;
+        const client = escapeHtml(clientNameInput.value.trim() || t('Não informado', 'Not provided'));
+        const project = escapeHtml(projectNameInput.value.trim() || t('Plano de Corte', 'Cutting plan'));
+        const mat = escapeHtml(materialTypeSelect.options[materialTypeSelect.selectedIndex].text);
         const sW = sheetWidthInput.value;
         const sH = sheetHeightInput.value;
         const kerf = kerfInput.value;
         const efficiency = document.getElementById('metricEfficiency').innerText;
         const waste = document.getElementById('metricWaste').innerText;
         const edgeMeters = document.getElementById('metricEdgeMeters').innerText;
-        const dateStr = new Date().toLocaleDateString('pt-BR');
+        const dateStr = new Date().toLocaleDateString(window.CorteI18n?.language === 'en' ? 'en-US' : 'pt-BR');
 
         let rowsHtml = '';
         appState.pieces.forEach((p, idx) => {
             rowsHtml += `
                 <tr>
-                    <td>#${idx + 1}</td>
-                    <td><strong>${p.label}</strong></td>
+                    <td>#${p.id}</td>
+                    <td data-user-content><strong>${escapeHtml(p.label)}</strong></td>
                     <td>${p.width} mm</td>
                     <td>${p.height} mm</td>
                     <td>${p.quantity}</td>
@@ -1034,6 +814,21 @@ document.addEventListener('DOMContentLoaded', () => {
             <h3 style="margin-top:20px;">Diagramas de Corte</h3>
         `;
 
+        const diagrams = document.createElement('div');
+        diagrams.className = 'print-diagrams';
+        cutPlanOutput.querySelectorAll('canvas').forEach((canvas, index) => {
+            const figure = document.createElement('figure');
+            const caption = document.createElement('figcaption');
+            caption.textContent = t('Chapa', 'Sheet') + ' ' + (index + 1);
+            const image = document.createElement('img');
+            image.src = canvas.toDataURL('image/png');
+            image.alt = caption.textContent;
+            image.style.maxWidth = '100%';
+            figure.append(caption, image);
+            diagrams.appendChild(figure);
+        });
+        reportContainer.appendChild(diagrams);
+        window.CorteI18n?.apply(reportContainer);
         window.print();
     };
 
@@ -1045,7 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const data = {
-            version: '2.0',
+            version: '3.0',
             client: clientNameInput.value,
             project: projectNameInput.value,
             material: materialTypeSelect.value,
@@ -1053,8 +848,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 width: parseInt(sheetWidthInput.value),
                 height: parseInt(sheetHeightInput.value),
                 kerf: parseFloat(kerfInput.value),
-                trim: parseInt(trimMarginInput.value)
+                trim: parseFloat(trimMarginInput.value),
+                allowRotation: allowRotationCheckbox.checked,
+                algorithm: cutAlgorithmSelect.value
             },
+            costs: {sheet: Number(sheetPriceInput.value) || 0, edge: Number(edgePriceInput.value) || 0},
             pieces: appState.pieces
         };
 
@@ -1065,40 +863,29 @@ document.addEventListener('DOMContentLoaded', () => {
         a.download = `plano-corte-${(projectNameInput.value || 'projeto').toLowerCase().replace(/\s+/g, '-')}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        showToast('Projeto exportado em JSON com sucesso!', 'success');
+        updateSaveStatus(true);
+        showToast(t('Projeto exportado em JSON com sucesso!', 'Project exported as JSON.'), 'success');
     };
 
-    window.importProjectJSON = function(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = e => {
-            try {
-                const data = JSON.parse(e.target.result);
-                if (data.client) clientNameInput.value = data.client;
-                if (data.project) projectNameInput.value = data.project;
-                if (data.material && materialTypeSelect) {
-                    materialTypeSelect.value = data.material;
-                    handleMaterialChange(data.material);
-                }
-                if (data.sheet) {
-                    if (data.sheet.width) sheetWidthInput.value = data.sheet.width;
-                    if (data.sheet.height) sheetHeightInput.value = data.sheet.height;
-                    if (data.sheet.kerf) kerfInput.value = data.sheet.kerf;
-                    if (data.sheet.trim) trimMarginInput.value = data.sheet.trim;
-                }
-                if (Array.isArray(data.pieces)) {
-                    appState.pieces = data.pieces;
-                    renderPieceList();
-                    clearResults();
-                    showToast('Projeto importado com sucesso!', 'success');
-                }
-            } catch (err) {
-                showToast('Arquivo JSON inválido!', 'error');
-            }
-        };
-        reader.readAsText(file);
+    window.importProjectJSON=function(event){
+        const file=event.target.files[0];if(!file)return;
+        if(file.size>5*1024*1024)return showToast(t('O projeto excede 5 MB.','Project exceeds 5 MB.'),'error');
+        const reader=new FileReader();reader.onload=e=>{
+            try{
+                const data=JSON.parse(e.target.result);
+                const pieces=Core.normalizePieces(data.pieces);
+                const sheet={...sheetSettings(),...(data.sheet||{})};
+                if(!Number.isFinite(Number(sheet.width))||!Number.isFinite(Number(sheet.height))||Number(sheet.width)<=0||Number(sheet.height)<=0||Number(sheet.trim)<0||Number(sheet.kerf)<0||Number(sheet.trim)*2>=Math.min(Number(sheet.width),Number(sheet.height)))throw Error('sheet');
+                clientNameInput.value=String(data.client||'').slice(0,160);projectNameInput.value=String(data.project||'').slice(0,160);
+                if(['wood','glass','metal','acrylic','custom'].includes(data.material)){materialTypeSelect.value=data.material;handleMaterialChange(data.material);}
+                sheetWidthInput.value=sheet.width;sheetHeightInput.value=sheet.height;kerfInput.value=sheet.kerf;trimMarginInput.value=sheet.trim;
+                if(typeof sheet.allowRotation==='boolean')allowRotationCheckbox.checked=sheet.allowRotation;
+                if(['auto','guillotine','maxrects','shelf'].includes(sheet.algorithm))cutAlgorithmSelect.value=sheet.algorithm;
+                if(data.costs){sheetPriceInput.value=Math.max(0,Number(data.costs.sheet)||0);edgePriceInput.value=Math.max(0,Number(data.costs.edge)||0);}
+                appState.pieces=pieces;appState.selectedPieceId=pieces[0]?.id||null;cancelPieceEdit();clearResults();renderPieceList();updateSaveStatus(false);updatePresetVisibility();selectWorkspaceTab('pieces');showToast(t('Projeto importado. Confira as peças antes de gerar o plano.','Project imported. Review the pieces before generating the plan.'),'success');
+            }catch{showToast(t('Arquivo de projeto inválido. Os dados atuais foram preservados.','Invalid project file. Current data was preserved.'),'error');}
+            event.target.value='';
+        };reader.readAsText(file);
     };
 
     // --- Importação de Planilha Excel (.xlsx, .csv) ---
@@ -1136,7 +923,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         if (w > 0 && h > 0 && q > 0) {
                             appState.pieces.push({
-                                id: appState.pieces.length + 1,
+                                id: Core.nextPieceId(appState.pieces),
                                 label,
                                 width: w,
                                 height: h,
@@ -1166,15 +953,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const password = document.getElementById('keepaiPassword').value.trim();
         const btnLogin = document.getElementById('btnKeepaiLogin');
         const btnRegister = document.getElementById('btnKeepaiRegister');
-        
+
         if (!email || !password) {
             showToast("Preencha e-mail e senha!", "error");
             return;
         }
-        
+
         if (btnLogin) btnLogin.disabled = true;
         if (btnRegister) btnRegister.disabled = true;
-        
+
         try {
             const r = await fetch(`../keepai/api/auth.php?action=${action}`, {
                 method: 'POST',
@@ -1182,14 +969,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ email, password })
             });
             const res = await r.json();
-            
+
             if (btnLogin) btnLogin.disabled = false;
             if (btnRegister) btnRegister.disabled = false;
-            
+
             if (res.token) {
                 localStorage.setItem('keepai_token', res.token);
                 showToast(action === 'login' ? "Conectado ao Keep AI!" : "Conta criada com sucesso!", "success");
-                
+
                 document.getElementById('keepaiEmail').value = '';
                 document.getElementById('keepaiPassword').value = '';
                 checkStatus();
@@ -1210,7 +997,7 @@ document.addEventListener('DOMContentLoaded', () => {
             checkStatus();
         });
     };
-    
+
     window.selectPackage = function(index) {
         window.selectedPackageIndex = index;
         for (let i = 0; i < 3; i++) {
@@ -1234,11 +1021,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const pixSection = document.getElementById('pix-section');
         const qrImg = document.getElementById('pix-qrcode');
         const copiaColaText = document.getElementById('pix-copia-cola');
-        
+
         if (!btn) return;
-        
+
         const token = localStorage.getItem('keepai_token');
-        
+
         if (!token) {
             Swal.fire({
                 icon: 'warning',
@@ -1262,11 +1049,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const originalHTML = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> GERANDO PIX...';
-        
+
         const fp = await getFingerprint();
         const headers = { 'Content-Type': 'application/json' };
         headers['Authorization'] = `Bearer ${token}`;
-        
+
         try {
             const r = await fetch('api_mp_create.php', {
                 method: 'POST',
@@ -1277,16 +1064,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     keepai_token: token
                 })
             });
-            
+
             const res = await r.json();
             btn.disabled = false;
             btn.innerHTML = originalHTML;
-            
+
             if (res.status === 'success' && res.qr_code_base64) {
                 qrImg.src = `data:image/png;base64,${res.qr_code_base64}`;
                 copiaColaText.value = res.qr_code;
                 pixSection.style.display = 'block';
-                
+
                 showToast("PIX gerado! Aguardando pagamento...", "info");
                 startPaymentPolling();
             } else {
@@ -1302,7 +1089,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.copyPixCode = function() {
         const text = document.getElementById('pix-copia-cola');
         if (!text || !text.value) return;
-        
+
         navigator.clipboard.writeText(text.value).then(() => {
             showToast("Chave PIX Copiada!", "success");
             Swal.fire({
@@ -1326,14 +1113,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const headers = {};
             if (token) headers['Authorization'] = `Bearer ${token}`;
             try {
-                const r = await fetch(`api_mp_check.php?fingerprint=${fp}&keepai_token=${encodeURIComponent(token || '')}`, { headers });
+                const r = await fetch(`api_mp_check.php?fingerprint=${fp}`, { headers });
                 const res = await r.json();
                 if (res.status === 'approved') {
                     clearInterval(paymentPollInterval);
                     paymentModal.style.display = 'none';
                     const pixSec = document.getElementById('pix-section');
                     if (pixSec) pixSec.style.display = 'none';
-                    
+
                     Swal.fire({
                         icon: 'success',
                         title: '⚡ Recarga Aprovada!',
@@ -1343,7 +1130,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         confirmButtonColor: '#00e5ff',
                         customClass: { popup: 'cyber-border' }
                     });
-                    
+
                     checkStatus();
                 }
             } catch (e) { }
@@ -1528,7 +1315,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             currentVideoStream = stream;
-            
+
             if (sketchVideo) {
                 sketchVideo.srcObject = stream;
                 sketchVideo.play();
@@ -1809,7 +1596,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function collectEditedOcrPieces() {
         const rows = ocrPreviewTbody ? ocrPreviewTbody.querySelectorAll('tr') : [];
         const resultPieces = [];
-        
+
         rows.forEach((row, idx) => {
             const name = row.querySelector('.ocr-name')?.value.trim() || `Peça ${idx + 1}`;
             const length = parseInt(row.querySelector('.ocr-length')?.value) || 0;
@@ -1859,7 +1646,7 @@ document.addEventListener('DOMContentLoaded', () => {
             appState.pieces = newPieces;
         } else {
             newPieces.forEach(np => {
-                np.id = appState.pieces.length + 1;
+                np.id = Core.nextPieceId(appState.pieces);
                 np.color = PIECE_COLORS[appState.pieces.length % PIECE_COLORS.length];
                 appState.pieces.push(np);
             });
@@ -1869,9 +1656,10 @@ document.addEventListener('DOMContentLoaded', () => {
         clearResults();
         updateSaveStatus(false);
         if (sketchModal) sketchModal.style.display = 'none';
+        selectWorkspaceTab('pieces');
 
         showToast(`🎉 ${newPieces.length} peças importadas do rascunho com sucesso!`, 'success');
-        
+
         const pieceCard = document.querySelector('.piece-list-card');
         if (pieceCard) {
             pieceCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1890,7 +1678,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('#openPrivacyModal, #openTermsModal').forEach(link => {
         link.onclick = (e) => {
             e.preventDefault();
-            const modalId = link.id.replace('open', '').toLowerCase() + 'Modal';
+            const modalId = link.id === 'openPrivacyModal' ? 'privacyModal' : 'termsModal';
             const m = document.getElementById(modalId);
             if (m) m.style.display = 'flex';
         };
@@ -1903,6 +1691,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window.onclick = (e) => { if (e.target.classList.contains('modal')) e.target.style.display = 'none'; };
 
     // Inicialização
+    setupWorkspace();
+    renderPieceList();
     checkStatus();
 });
 

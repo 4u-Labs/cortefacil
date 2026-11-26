@@ -23,6 +23,17 @@
 
 ---
 
+## Área de trabalho atualizada
+
+- Interface PT-BR/EN com preferência persistida e navegação Chapa / Peças / Plano no celular.
+- Configurações ao lado do mapa no computador; peças com seleção sincronizada, edição e duplicação.
+- Identificadores legíveis no mapa, detalhes por seleção, seletor de chapas e tela cheia.
+- Modais independentes do painel para abrir corretamente na tela após rolagem.
+- Planos testados quanto a sobreposição, área útil, refilo, serra e rotação nos quatro algoritmos.
+- Exporte JSON para guardar o projeto; a leitura de rascunhos envia a imagem ao serviço de IA.
+
+Validação: `npm test` e `npm run check` (Node.js e PHP; sem dependências de desenvolvimento).
+
 ## 🌟 Principais Recursos
 
 ### 🧠 1. Leitor de Rascunhos & Listas com IA (Vision OCR Pro)
@@ -73,7 +84,7 @@ O app conta com projetos completos de demonstração prontos para teste imediato
 - **Frontend**: HTML5, CSS3 Moderno (Glassmorphism & Cyberpunk Theme), JavaScript ES6+ Puro (sem frameworks pesados).
 - **Canvas API**: Renderização 2D de alta performance com suporte a Zoom, Pan e Labels comutáveis.
 - **Backend**: PHP 8.x, SQLite 3 (Cofre Local e Controle de Sessão).
-- **IA Vision**: OpenAI API (`gpt-4o-mini` Vision OCR) com prompts estruturados em JSON.
+- **IA Vision**: Gemini Vision pelo helper compartilhado do Office, com resposta estruturada em JSON.
 - **PWA**: Service Worker para cache, suporte offline e instalação como aplicativo nativo.
 
 ---
@@ -117,9 +128,9 @@ cp .env.example .env
 3. Configure suas chaves no `.env`:
 ```env
 ADMIN_PASS=sua_senha_admin
-OPENAI_API_KEY=sk-proj-sua-chave-openai
+AI_PROVIDER=shared_office
 MP_PUBLIC_KEY=APP_USR-sua-chave-publica
-MP_ACCESS_TOKEN=APP_USR-seu-access-token
+MP_ACCESS_TOKEN=configure_no_servidor
 APP_ENV=production
 ```
 
@@ -133,7 +144,7 @@ Acesse no navegador: `http://localhost:8080`
 
 ## 📜 Licença & Créditos
 
-Desenvolvido por **[4U.IA.BR](https://4u.ia.br)**  
-**Autor:** Fabiano Braga ([ORCID: 0009-0004-5936-5060](https://orcid.org/0009-0004-5936-5060))  
+Desenvolvido por **[4U.IA.BR](https://4u.ia.br)**
+**Autor:** Fabiano Braga ([ORCID: 0009-0004-5936-5060](https://orcid.org/0009-0004-5936-5060))
 Todos os direitos reservados.
 

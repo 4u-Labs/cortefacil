@@ -6,3 +6,13 @@ api_logs.txt
 .user_uploaded/
 .DS_Store
 *.log
+
+.env.local
+.config.php
+*.db
+*.sqlite
+*.sqlite3
+uploads/
+database/
+credentials.json
+node_modules/
