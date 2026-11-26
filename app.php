@@ -68,6 +68,8 @@ $v = time();
         }
         .feature-item h3 { color: #fff; margin-bottom: 10px; }
     </style>
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=20261120-2">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=20261120-2">
 </head>
 <body class="cyber-theme">
     <div class="cyber-bg"></div>

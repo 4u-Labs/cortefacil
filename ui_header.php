@@ -13,8 +13,8 @@ $v = file_exists('style.css') ? filemtime('style.css') : time();
     <title><?php echo $pageTitle ?? 'CorteFácil Pro - Otimizador 2D'; ?></title>
     
     <!-- PWA & SEO -->
-    <link href="images/icon-192.png" rel="icon" sizes="192x192" type="image/png"/>
-    <link href="images/icon-512.png" rel="icon" sizes="512x512" type="image/png"/>
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=20261120-2">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=20261120-2">
     <link href="manifest.json" rel="manifest"/>
     <meta name="description" content="O melhor otimizador de plano de corte 2D para marcenaria e serralheria. Economize material com o CorteFácil Pro.">
     

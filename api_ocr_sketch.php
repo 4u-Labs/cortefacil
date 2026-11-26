@@ -4,6 +4,7 @@
  * Corte Fácil Pro — Padrão 4U.IA.BR Premium
  */
 include 'lib_db.php';
+require_once __DIR__ . '/../office/api/gemini_helper.php';
 header('Content-Type: application/json; charset=utf-8');
 $_fouruOrigin = $_SERVER['HTTP_ORIGIN'] ?? ''; if ($_fouruOrigin !== '' && (in_array($_fouruOrigin, ['https://4u.ia.br','https://www.4u.ia.br'], true) || str_starts_with($_fouruOrigin, 'chrome-extension://') || str_starts_with($_fouruOrigin, 'http://localhost') || str_starts_with($_fouruOrigin, 'http://127.0.0.1'))) { header('Access-Control-Allow-Origin: ' . $_fouruOrigin); header('Vary: Origin'); }
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -20,10 +21,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// 1. Obter API Key da OpenAI
-$apiKey = get_env_var('OPENAI_API_KEY');
-if (empty($apiKey) || $apiKey === 'sua_chave_aqui') {
-    echo json_encode(['status' => 'error', 'message' => 'Chave de API OpenAI não configurada no .env']);
+office_gemini_rate_limit(20);
+
+// 1. Verificar chave Gemini configurada no servidor
+if (office_get_gemini_key() === '') {
+    echo json_encode(['status' => 'error', 'message' => 'Chave da API Gemini não configurada no servidor.']);
     exit;
 }
 
@@ -148,75 +150,25 @@ if (!empty($customInstructions)) {
     $userPromptText .= "\nInstruções extras do operador: " . $customInstructions;
 }
 
-// 4. Montar Payload Vision para OpenAI
-$dataPayload = [
-    'model' => 'gpt-4o-mini',
-    'messages' => [
-        [
-            'role' => 'system',
-            'content' => $systemPrompt
-        ],
-        [
-            'role' => 'user',
-            'content' => [
-                [
-                    'type' => 'text',
-                    'text' => $userPromptText
-                ],
-                [
-                    'type' => 'image_url',
-                    'image_url' => [
-                        'url' => "data:{$mimeType};base64,{$imageBase64}",
-                        'detail' => 'high'
-                    ]
-                ]
-            ]
-        ]
-    ],
-    'temperature' => 0.1,
-    'max_tokens' => 3000,
-    'response_format' => ['type' => 'json_object']
-];
-
-// 5. Executar requisição cURL
-$ch = curl_init('https://api.openai.com/v1/chat/completions');
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST => true,
-    CURLOPT_HTTPHEADER => [
-        'Content-Type: application/json',
-        'Authorization: Bearer ' . $apiKey
-    ],
-    CURLOPT_POSTFIELDS => json_encode($dataPayload),
-    CURLOPT_TIMEOUT => 45,
-    CURLOPT_SSL_VERIFYPEER => true
-]);
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$curlErr = curl_error($ch);
-curl_close($ch);
-
-if ($curlErr) {
+// 4. Montar prompt e chamar Google Gemini Vision (tier gratuito)
+try {
+    $rawContent = office_gemini_generate(
+        $userPromptText,
+        $systemPrompt,
+        $imageBase64,
+        $mimeType,
+        true,
+        0.1,
+        2500
+    );
+} catch (Throwable $e) {
     echo json_encode([
         'status' => 'error',
-        'message' => 'Falha de comunicação com a IA: ' . $curlErr
-    ]);
+        'message' => 'Erro ao processar imagem com IA: ' . $e->getMessage()
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-if ($httpCode !== 200) {
-    $errObj = json_decode($response, true);
-    $errMsg = $errObj['error']['message'] ?? "Erro HTTP {$httpCode} na API OpenAI";
-    echo json_encode([
-        'status' => 'error',
-        'message' => 'Erro ao processar imagem com IA: ' . $errMsg
-    ]);
-    exit;
-}
-
-$resData = json_decode($response, true);
-$rawContent = $resData['choices'][0]['message']['content'] ?? '{}';
 $parsedJson = json_decode($rawContent, true);
 
 if (!$parsedJson || !isset($parsedJson['pieces'])) {
